@@ -34,7 +34,7 @@ Selim for the current key.
 npm install
 echo "DAILY_API_KEY=<key>" > server/.env
 npm start                     # http://localhost:3001
-npm test                      # 17 checks, no API key needed
+npm test                      # 24 checks, no API key needed
 ```
 
 Open `http://localhost:3001` in two tabs with complementary languages
@@ -101,3 +101,50 @@ Disconnects are handled automatically - nothing to emit.
   being silently dropped.
 - The smoke test replaces `server/rooms.js` through Node's require cache, so
   it never calls the live Daily API and needs no key.
+
+## Testing across two laptops
+
+`localhost` means "this machine", and the waiting pool lives in memory in a
+single process - so if two people each run `npm start`, they sit in two
+separate pools and will never match. One person runs the server, everyone
+connects to that machine:
+
+```bash
+ipconfig getifaddr en0     # the host machine's LAN ip, e.g. 172.29.23.42
+```
+
+Everyone else opens `http://<that-ip>:3001`. Only the host machine needs
+`server/.env`. Allow the incoming connection if macOS prompts about `node`.
+
+Note that camera/mic access is blocked on a plain `http://` LAN address -
+browsers only allow it on `https://` or `localhost` - so video needs a real
+deployment, though text chat works fine this way.
+
+## Deployment
+
+Live at **bilingle.live**.
+
+Requirements, none of which are optional:
+
+- **Node 18+** (pinned in `engines`). Selim's `rooms.js` calls global
+  `fetch`, which doesn't exist on older versions.
+- **A host that supports long-lived WebSocket connections** - Render,
+  Railway, Fly.io or a VPS. Serverless platforms (Vercel/Netlify functions)
+  cannot hold a Socket.io connection open.
+- **Exactly one instance.** The waiting pool is an in-memory `Map`, so two
+  instances behind a load balancer means two separate pools and users who
+  silently never match. Moving the pool to Redis is a prerequisite for
+  scaling past one.
+- **HTTPS.** Browsers only grant camera/mic access on a secure context, so
+  video will not work over plain http.
+
+Environment variables on the host:
+
+| Variable | Value |
+|---|---|
+| `DAILY_API_KEY` | from the Daily dashboard - set it in the host's env, not a committed file |
+| `ALLOWED_ORIGINS` | `https://bilingle.live,https://www.bilingle.live` |
+| `PORT` | set automatically by most hosts; defaults to 3001 |
+
+`dotenv` reads `server/.env` if present and does nothing if it isn't, so the
+host's own environment variables take over in production with no code change.

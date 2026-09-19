@@ -29,8 +29,18 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 // Socket.io needs a raw http server to attach to (it can't attach directly
 // to the Express app), so we wrap the app in one.
 const server = http.createServer(app);
+
+// Which origins may open a socket against us. A frontend served BY this
+// server is same-origin and never needs this - it's for Micah's dev server
+// running on another port, and for any separately hosted frontend.
+// Unset (local dev) means allow anything; in production set it to the real
+// origin, e.g. ALLOWED_ORIGINS=https://bilingle.live,https://www.bilingle.live
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
+  : true;
+
 const io = new Server(server, {
-  cors: { origin: '*' },
+  cors: { origin: allowedOrigins },
 });
 
 // key = socketId -> value = { socketId, name, pairs: [{ fluentLang, learningLang }] }
