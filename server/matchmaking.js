@@ -1,39 +1,50 @@
 // Waiting pool, key = "fluentLang-learningLang" (e.g. "en-tr").
-const pool = new Map(); // value = [user1, user2, user3] who use that key pair
+// value = [entry, entry, ...] of everyone waiting on that pair.
+const pool = new Map();
 
 function poolKey(fluentLang, learningLang) {
   return `${fluentLang}-${learningLang}`;
 }
 
-function addToQueue(user) {
-  const key = poolKey(user.fluentLang, user.learningLang);
-  if (!pool.has(key)) pool.set(key, []); 
-  pool.get(key).push(user);
+function addToQueue(entry) {
+  const key = poolKey(entry.fluentLang, entry.learningLang);
+  if (!pool.has(key)) pool.set(key, []);
+  pool.get(key).push(entry);
 }
 
-// Looks for someone waiting with the *reverse* language pair, removes and
-// returns them if found (FIFO), or returns null.
-function findAndRemoveMatch(user) {
-  const reverseKey = poolKey(user.learningLang, user.fluentLang); 
-  const candidates = pool.get(reverseKey); //list that has reverse pair
+// Looks for someone waiting on the *reverse* of this pair, removes that one
+// entry and returns it (FIFO), or returns null.
+
+function findAndRemoveMatch(fluentLang, learningLang) {
+  const reverseKey = poolKey(learningLang, fluentLang);
+  const candidates = pool.get(reverseKey);
   if (!candidates || candidates.length === 0) return null;
 
-  const match = candidates.shift(); // pop match from front of candidates list
+  const match = candidates.shift();
   if (candidates.length === 0) pool.delete(reverseKey);
   return match;
 }
 
-// Remove user without a match, with socketId === socketId (disconnect, close tab, etc.)
+// Removes EVERY entry belonging to this socket, across all pairs. Used on
+// disconnect, on match, and when a user
+// re-queues with a different language selection.
+// Returns how many entries were dropped.
 function removeFromQueue(socketId) {
-  for (const [key, users] of pool.entries()) {
-    const index = users.findIndex((u) => u.socketId === socketId); // find user that disconnected
-    if (index !== -1) { 
-      users.splice(index, 1); // remove just that user
-      if (users.length === 0) pool.delete(key);
-      return true;
+  let removed = 0;
+
+  for (const [key, entries] of pool.entries()) {
+    // Walk backwards so splicing doesn't shift indexes we haven't checked.
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (entries[i].socketId === socketId) {
+        entries.splice(i, 1);
+        removed++;
+      }
     }
+
+    if (entries.length === 0) pool.delete(key);
   }
-  return false;
+
+  return removed;
 }
 
 module.exports = { addToQueue, findAndRemoveMatch, removeFromQueue };

@@ -33,25 +33,56 @@ const io = new Server(server, {
   cors: { origin: '*' },
 });
 
-// key = socketId -> value = full profile ({ socketId, name, fluentLang, learningLang }).
+// key = socketId -> value = { socketId, name, pairs: [{ fluentLang, learningLang }] }
+// A user can queue for several language pairs at once, so we keep their whole
+// list here - needed to re-queue them on skip, or to restore every pair after
+// a failed room creation.
 const users = new Map();
 
 // Basic shape-check. Not complete
 function isValidProfile(profile) {
-  return (
-    profile &&
-    typeof profile.name === 'string' &&
-    typeof profile.fluentLang === 'string' &&
-    typeof profile.learningLang === 'string' &&
-    profile.name.trim() &&
-    profile.fluentLang.trim() &&
-    profile.learningLang.trim()
+  if (!profile || typeof profile.name !== 'string' || !profile.name.trim()) return false;
+  if (!Array.isArray(profile.pairs) || profile.pairs.length === 0) return false;
+
+  return profile.pairs.every(
+    (pair) =>
+      pair &&
+      typeof pair.fluentLang === 'string' &&
+      typeof pair.learningLang === 'string' &&
+      pair.fluentLang.trim() &&
+      pair.learningLang.trim()
   );
 }
 
-// Leave out socket id
-function partnerPayload(user) {
-  return { name: user.name, fluentLang: user.fluentLang, learningLang: user.learningLang };
+// Drops duplicate pairs - the same pair listed twice would otherwise put two
+// entries for one socket in the same list.
+function normalizePairs(pairs) {
+  const seen = new Set();
+
+  return pairs.filter((pair) => {
+    const key = `${pair.fluentLang}-${pair.learningLang}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+// One pool entry per pair the user is willing to match on.
+function queueAllPairs(user) {
+  for (const pair of user.pairs) {
+    addToQueue({
+      socketId: user.socketId,
+      name: user.name,
+      fluentLang: pair.fluentLang,
+      learningLang: pair.learningLang,
+    });
+  }
+}
+
+// Leave out socket id. Takes a pool ENTRY, so the languages reported are the
+// pair that was actually matched on, not the user's full list.
+function partnerPayload(entry) {
+  return { name: entry.name, fluentLang: entry.fluentLang, learningLang: entry.learningLang };
 }
 
 // Called once we've found two complementary users. Gets a room from
@@ -70,23 +101,43 @@ async function matchUsers(userA, userB) {
 // partner right now; if there isn't one, drop this user in the pool and
 // tell them to wait.
 async function enterQueue(socket, user) {
-  const partner = findAndRemoveMatch(user);
-  if (partner) {
+  // Clear anything left from a previous attempt. Without this, a user who
+  // emits join-queue twice can be matched against their OWN stale entry.
+  removeFromQueue(socket.id);
+
+  for (const pair of user.pairs) {
+    const partner = findAndRemoveMatch(pair.fluentLang, pair.learningLang);
+    if (!partner) continue;
+
+    // findAndRemoveMatch only removed the single entry it matched on. The
+    // partner may still be queued for their other pairs, and those leftovers
+    // would let a third person match a socket that is already in a call.
+    removeFromQueue(partner.socketId);
+
+    const entry = {
+      socketId: socket.id,
+      name: user.name,
+      fluentLang: pair.fluentLang,
+      learningLang: pair.learningLang,
+    };
+
     try {
-      await matchUsers(user, partner);
+      await matchUsers(entry, partner);
       return;
     } catch (err) {
       // Daily.co room creation failed (bad/expired key, network, rate limit).
-      // findAndRemoveMatch has ALREADY pulled the partner out of the pool, so
-      // without this they'd be silently dropped and left waiting forever.
-      // Put them back and fall through to re-queue this user too.
+      // Both sides are out of the pool by now, so restore the partner's FULL
+      // pair list before falling through to re-queue this user too.
       console.error('Room creation failed, returning both users to the queue:', err);
-      addToQueue(partner);
+
+      const partnerUser = users.get(partner.socketId);
+      if (partnerUser) queueAllPairs(partnerUser);
       io.to(partner.socketId).emit('waiting');
+      break;
     }
   }
 
-  addToQueue(user);
+  queueAllPairs(user);
   socket.emit('waiting');
 }
 
@@ -98,11 +149,15 @@ io.on('connection', (socket) => {
   socket.on('join-queue', async (profile) => {
     if (!isValidProfile(profile)) return;
 
+    // Already in a call - they have to skip first. Without this they could be
+    // matched a second time, leaving the original partner in a half-dead
+    // match: their messages still arrive here, ours go to the new partner.
+    if (getMatch(socket.id)) return;
+
     const user = {
       socketId: socket.id,
       name: profile.name,
-      fluentLang: profile.fluentLang,
-      learningLang: profile.learningLang,
+      pairs: normalizePairs(profile.pairs),
     };
     users.set(socket.id, user);
 

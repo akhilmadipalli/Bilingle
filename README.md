@@ -50,9 +50,14 @@ working reference implementation of everything below.
 
 | Event | Payload | Notes |
 |---|---|---|
-| `join-queue` | `{ name, fluentLang, learningLang }` | Do **not** send `socketId`; the server takes it from the connection |
+| `join-queue` | `{ name, pairs: [{ fluentLang, learningLang }, ...] }` | Do **not** send `socketId`; the server takes it from the connection |
 | `send-message` | `{ text }` | Silently dropped if not currently matched |
 | `skip` | *none* | Leave the current match |
+
+`pairs` is a list because a user can queue for several language combinations
+at once - someone fluent in `en`+`es` learning `tr` sends both `en`->`tr` and
+`es`->`tr` and gets matched on whichever comes up first. A user with one
+combination just sends a list of one. Duplicate pairs are ignored.
 
 Disconnects are handled automatically - nothing to emit.
 
@@ -60,7 +65,7 @@ Disconnects are handled automatically - nothing to emit.
 
 | Event | Payload | Meaning |
 |---|---|---|
-| `matched` | `{ roomUrl, partner: { name, fluentLang, learningLang } }` | Paired. `roomUrl` is a plain Daily.co url string |
+| `matched` | `{ roomUrl, partner: { name, fluentLang, learningLang } }` | Paired. `roomUrl` is a plain Daily.co url string. The partner's languages are the pair you were **actually matched on**, not their whole list - so your own side of the match is always the reverse of them |
 | `chat-message` | `{ text }` | From your partner. No sender name - label it with the `partner.name` you saved from `matched` |
 | `waiting` | *none* | You are in the queue, actively searching |
 | `waiting` | `{ reason: 'partner-left' }` | Your partner left. You are **not** in the queue - show a static "disconnected" screen and rejoin manually |
@@ -73,6 +78,12 @@ Disconnects are handled automatically - nothing to emit.
   `reason: 'partner-left'` and stays idle until they emit `join-queue`
   again.
 - **`join-queue` while already matched is ignored.** Skip first.
+- **Re-sending `join-queue` while waiting replaces your queued pairs**, it
+  doesn't add to them. That's how a user changes their language selection
+  without skipping, and it's what stops you being matched with yourself.
+- **More pairs means faster matches.** Someone queued for four combinations
+  is matched roughly four times as often as someone queued for one. Fine at
+  your size; worth revisiting if fairness ever matters.
 - **Language codes must match exactly, reversed.** `en`/`tr` only ever pairs
   with `tr`/`en`. Agree on one code set (lowercase ISO 639-1) - `"EN"` vs
   `"en"` will silently never match and will look like a backend bug.

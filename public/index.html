@@ -4,11 +4,16 @@
   <meta charset="utf-8" />
   <title>Bilingle - matchmaking test client</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 32px auto; padding: 0 16px; }
+    body { font-family: system-ui, sans-serif; max-width: 560px; margin: 32px auto; padding: 0 16px; }
     h1 { font-size: 20px; }
     label { display: block; margin-top: 8px; font-size: 13px; color: #444; }
-    input { width: 100%; padding: 6px; box-sizing: border-box; }
+    input { padding: 6px; box-sizing: border-box; }
+    input.full { width: 100%; }
+    input.lang { width: 80px; }
     button { padding: 6px 14px; margin-right: 8px; margin-top: 12px; }
+    #pairs { margin-top: 12px; padding-left: 18px; font-size: 13px; }
+    #pairs li { margin-bottom: 4px; }
+    #pairs button { margin: 0 0 0 8px; padding: 1px 6px; font-size: 11px; }
     #status { margin-top: 16px; padding: 12px; border-radius: 4px; background: #f0f0f0; white-space: pre-wrap; }
     #status.matched { background: #e6f4ea; }
     #status.left { background: #fdecea; }
@@ -22,12 +27,19 @@
 <body>
   <h1>Bilingle matchmaking test client</h1>
 
-  <label>Name <input id="name" value="Alex" /></label>
-  <label>Fluent language <input id="fluentLang" value="en" /></label>
-  <label>Learning language <input id="learningLang" value="tr" /></label>
+  <label>Name <input id="name" class="full" value="Alex" /></label>
+
+  <!-- A user can queue for several language pairs at once. In the real app
+       these come from dropdowns of the languages on the user's profile. -->
+  <label>Add a language pair (fluent -> learning)</label>
+  <input id="fluentLang" class="lang" value="en" />
+  <input id="learningLang" class="lang" value="tr" />
+  <button id="addPair">Add pair</button>
+
+  <ul id="pairs"></ul>
 
   <button id="join">Join queue</button>
-  <!-- "Stop" = the `skip` event. The person who clicks it IS auto-requeued. -->
+  <!-- "Stop" = the `skip` event. Whoever clicks it IS auto-requeued. -->
   <button id="skip" class="hidden">Stop</button>
   <!-- Only shown after the PARTNER left - they are NOT auto-requeued, so
        rejoining has to be a manual action. -->
@@ -36,7 +48,7 @@
   <div id="status">Not connected.</div>
 
   <div id="chat" class="hidden">
-    <input id="message" placeholder="Type a message, press Enter" />
+    <input id="message" class="full" placeholder="Type a message, press Enter" />
     <div id="log"></div>
   </div>
 
@@ -48,10 +60,15 @@
     const statusEl = document.getElementById('status');
     const logEl = document.getElementById('log');
     const chatEl = document.getElementById('chat');
+    const pairsEl = document.getElementById('pairs');
     const joinBtn = document.getElementById('join');
     const skipBtn = document.getElementById('skip');
     const newBtn = document.getElementById('new');
     const messageInput = document.getElementById('message');
+
+    // Every pair we're willing to be matched on. The server queues us once
+    // per pair, so more pairs means more chances to match.
+    let pairs = [{ fluentLang: 'en', learningLang: 'tr' }];
 
     // Remembered from the `matched` event. The server does NOT put a sender
     // name on chat messages, so this is what we label incoming lines with.
@@ -66,6 +83,25 @@
       el.classList.toggle('hidden', !visible);
     }
 
+    function renderPairs() {
+      pairsEl.innerHTML = '';
+
+      pairs.forEach((pair, index) => {
+        const item = document.createElement('li');
+        item.textContent = `${pair.fluentLang} -> ${pair.learningLang}`;
+
+        const remove = document.createElement('button');
+        remove.textContent = 'remove';
+        remove.addEventListener('click', () => {
+          pairs.splice(index, 1);
+          renderPairs();
+        });
+
+        item.appendChild(remove);
+        pairsEl.appendChild(item);
+      });
+    }
+
     function log(who, text, cls) {
       const line = document.createElement('div');
       line.className = cls;
@@ -74,19 +110,23 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
-    function readProfile() {
-      return {
-        name: document.getElementById('name').value,
-        fluentLang: document.getElementById('fluentLang').value,
-        learningLang: document.getElementById('learningLang').value,
-      };
+    function joinQueue() {
+      if (pairs.length === 0) {
+        setStatus('Add at least one language pair first.');
+        return;
+      }
+
       // Note: we do NOT send socketId - the server takes it from the connection.
+      socket.emit('join-queue', {
+        name: document.getElementById('name').value,
+        pairs,
+      });
     }
 
     socket.on('connect', () => setStatus(`Connected as ${socket.id}. Not in the queue yet.`));
 
     // `waiting` arrives in two flavors and they mean different things:
-    //   - no payload          -> we are actively in the queue, searching
+    //   - no payload                 -> we are in the queue, searching
     //   - { reason: 'partner-left' } -> our partner left; we are NOT in the
     //     queue and must rejoin manually (classic Omegle "Stop" behavior)
     socket.on('waiting', (payload) => {
@@ -101,7 +141,8 @@
         return;
       }
 
-      setStatus('Searching for a partner...');
+      const summary = pairs.map((p) => `${p.fluentLang}->${p.learningLang}`).join(', ');
+      setStatus(`Searching for a partner...\nQueued for: ${summary}`);
       show(joinBtn, false);
       show(skipBtn, true);
       show(newBtn, false);
@@ -112,7 +153,8 @@
       logEl.innerHTML = '';
 
       setStatus(
-        `Matched with ${partner.name} (fluent ${partner.fluentLang}, learning ${partner.learningLang})\n` +
+        `Matched with ${partner.name}\n` +
+        `They are fluent in ${partner.fluentLang} and learning ${partner.learningLang}\n` +
         `Video room: ${roomUrl}`,
         'matched'
       );
@@ -129,8 +171,17 @@
       log(partnerName || 'Stranger', text, 'them');
     });
 
-    joinBtn.addEventListener('click', () => socket.emit('join-queue', readProfile()));
-    newBtn.addEventListener('click', () => socket.emit('join-queue', readProfile()));
+    document.getElementById('addPair').addEventListener('click', () => {
+      const fluentLang = document.getElementById('fluentLang').value.trim();
+      const learningLang = document.getElementById('learningLang').value.trim();
+      if (!fluentLang || !learningLang) return;
+
+      pairs.push({ fluentLang, learningLang });
+      renderPairs();
+    });
+
+    joinBtn.addEventListener('click', joinQueue);
+    newBtn.addEventListener('click', joinQueue);
     skipBtn.addEventListener('click', () => socket.emit('skip'));
 
     messageInput.addEventListener('keydown', (event) => {
@@ -143,6 +194,8 @@
       log('You', text, 'me');
       messageInput.value = '';
     });
+
+    renderPairs();
   </script>
 </body>
 </html>
