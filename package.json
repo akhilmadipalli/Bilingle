@@ -2,10 +2,10 @@
   "name": "bilingle-matchmaking-server",
   "version": "1.0.0",
   "description": "Bilingle matchmaking server - matches users by complementary language pairs and hands off room creation to Developer B's room-creation function.",
-  "main": "src/server.js",
+  "main": "server/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
     "test": "node tests/smoke-test.js"
   },
   "dependencies": {
