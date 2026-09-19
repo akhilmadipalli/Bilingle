@@ -1,4 +1,3 @@
-// reads from server/.env (node --env-file=.env), never hardcode this key
 const DAILY_API_KEY = process.env.DAILY_API_KEY;
 
 // creates one daily.co room, returns its joinable url
