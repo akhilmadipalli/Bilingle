@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Bilingle - matchmaking test client</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 32px auto; padding: 0 16px; }
+    h1 { font-size: 20px; }
+    label { display: block; margin-top: 8px; font-size: 13px; color: #444; }
+    input { width: 100%; padding: 6px; box-sizing: border-box; }
+    button { padding: 6px 14px; margin-right: 8px; margin-top: 12px; }
+    #status { margin-top: 16px; padding: 12px; border-radius: 4px; background: #f0f0f0; white-space: pre-wrap; }
+    #status.matched { background: #e6f4ea; }
+    #status.left { background: #fdecea; }
+    #chat { margin-top: 16px; }
+    #log { border: 1px solid #ccc; height: 160px; overflow-y: auto; padding: 8px; font-size: 13px; }
+    #log .me { color: #1a73e8; }
+    #log .them { color: #c5221f; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Bilingle matchmaking test client</h1>
+
+  <label>Name <input id="name" value="Alex" /></label>
+  <label>Fluent language <input id="fluentLang" value="en" /></label>
+  <label>Learning language <input id="learningLang" value="tr" /></label>
+
+  <button id="join">Join queue</button>
+  <!-- "Stop" = the `skip` event. The person who clicks it IS auto-requeued. -->
+  <button id="skip" class="hidden">Stop</button>
+  <!-- Only shown after the PARTNER left - they are NOT auto-requeued, so
+       rejoining has to be a manual action. -->
+  <button id="new" class="hidden">New</button>
+
+  <div id="status">Not connected.</div>
+
+  <div id="chat" class="hidden">
+    <input id="message" placeholder="Type a message, press Enter" />
+    <div id="log"></div>
+  </div>
+
+  <!-- Served automatically by the socket.io server, no CDN needed. -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const chatEl = document.getElementById('chat');
+    const joinBtn = document.getElementById('join');
+    const skipBtn = document.getElementById('skip');
+    const newBtn = document.getElementById('new');
+    const messageInput = document.getElementById('message');
+
+    // Remembered from the `matched` event. The server does NOT put a sender
+    // name on chat messages, so this is what we label incoming lines with.
+    let partnerName = null;
+
+    function setStatus(text, cls) {
+      statusEl.textContent = text;
+      statusEl.className = cls || '';
+    }
+
+    function show(el, visible) {
+      el.classList.toggle('hidden', !visible);
+    }
+
+    function log(who, text, cls) {
+      const line = document.createElement('div');
+      line.className = cls;
+      line.textContent = `${who}: ${text}`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function readProfile() {
+      return {
+        name: document.getElementById('name').value,
+        fluentLang: document.getElementById('fluentLang').value,
+        learningLang: document.getElementById('learningLang').value,
+      };
+      // Note: we do NOT send socketId - the server takes it from the connection.
+    }
+
+    socket.on('connect', () => setStatus(`Connected as ${socket.id}. Not in the queue yet.`));
+
+    // `waiting` arrives in two flavors and they mean different things:
+    //   - no payload          -> we are actively in the queue, searching
+    //   - { reason: 'partner-left' } -> our partner left; we are NOT in the
+    //     queue and must rejoin manually (classic Omegle "Stop" behavior)
+    socket.on('waiting', (payload) => {
+      partnerName = null;
+      show(chatEl, false);
+
+      if (payload && payload.reason === 'partner-left') {
+        setStatus('Stranger has disconnected.\nPress New to find someone else.', 'left');
+        show(joinBtn, false);
+        show(skipBtn, false);
+        show(newBtn, true);
+        return;
+      }
+
+      setStatus('Searching for a partner...');
+      show(joinBtn, false);
+      show(skipBtn, true);
+      show(newBtn, false);
+    });
+
+    socket.on('matched', ({ roomUrl, partner }) => {
+      partnerName = partner.name;
+      logEl.innerHTML = '';
+
+      setStatus(
+        `Matched with ${partner.name} (fluent ${partner.fluentLang}, learning ${partner.learningLang})\n` +
+        `Video room: ${roomUrl}`,
+        'matched'
+      );
+
+      show(chatEl, true);
+      show(joinBtn, false);
+      show(skipBtn, true);
+      show(newBtn, false);
+      messageInput.focus();
+    });
+
+    // Payload is just { text } - we label it with the name we stored above.
+    socket.on('chat-message', ({ text }) => {
+      log(partnerName || 'Stranger', text, 'them');
+    });
+
+    joinBtn.addEventListener('click', () => socket.emit('join-queue', readProfile()));
+    newBtn.addEventListener('click', () => socket.emit('join-queue', readProfile()));
+    skipBtn.addEventListener('click', () => socket.emit('skip'));
+
+    messageInput.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+
+      const text = messageInput.value;
+      if (!text.trim()) return;
+
+      socket.emit('send-message', { text });
+      log('You', text, 'me');
+      messageInput.value = '';
+    });
+  </script>
+</body>
+</html>
