@@ -26,6 +26,9 @@ const app = express();
 // http://localhost:3001 in a browser gives us something to click around in.
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// Shared translation endpoint: POST /api/translate. See server/translate.js.
+app.use('/api', require('./translate'));
+
 // Socket.io needs a raw http server to attach to (it can't attach directly
 // to the Express app), so we wrap the app in one.
 const server = http.createServer(app);
