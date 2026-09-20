@@ -41,6 +41,7 @@
 <script src="https://unpkg.com/@daily-co/daily-js"></script>
 <script src="/call.js"></script>
 <script src="/dictionary.js"></script>
+<script src="/translate.js"></script>
 <script>
 (() => {
   'use strict';
@@ -62,6 +63,7 @@
   let myName = '';
   let pairs = [];          // what we last sent to join-queue, shown on the searching screen
   let partnerName = null;  // from `matched`; chat-message carries no sender name
+  let partnerLangs = null; // { fluent, mine } from `matched`: translate targets
 
   function show(screen) {
     state = screen;
@@ -191,6 +193,8 @@
     content.className = 'message-body';
     content.textContent = body;
     item.append(label, content);
+    // Their words translate into my fluent language; mine into theirs.
+    if (partnerLangs) Bilingle.translate.attachButton(item, body, self ? partnerLangs.fluent : partnerLangs.mine);
     $('messages').append(item);
     $('messages').scrollTop = $('messages').scrollHeight;
   }
@@ -218,6 +222,7 @@
   //     queue and must rejoin manually (classic Omegle "Stop" behavior)
   socket.on('waiting', (payload) => {
     partnerName = null;
+    partnerLangs = null;
     leaveCall();
 
     if (payload && payload.reason === 'partner-left') {
@@ -231,6 +236,8 @@
 
   socket.on('matched', ({ roomUrl, partner }) => {
     partnerName = partner.name;
+    // The server matches complementary pairs, so what they're learning is what I'm fluent in.
+    partnerLangs = { fluent: partner.fluentLang, mine: partner.learningLang };
     $('matched-title').textContent = `Meet ${partner.name}. Say hello.`;
     $('partner-info').textContent =
       `${partner.name} speaks ${langName(partner.fluentLang)} and is practicing ${langName(partner.learningLang)}. You’re a match!`;

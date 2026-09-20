@@ -139,3 +139,14 @@ Privacy: the looked-up word is sent to Wikimedia (en.wiktionary.org) and, as a
 fallback for some pages, to Kaikki.org. Wiktionary text is CC BY-SA, and each result
 links back to its Wiktionary page. Server requests use the User-Agent
 `Bilingle-hackathon/1.0 (https://github.com/akhilmadipalli/Bilingle)`.
+
+## Click-to-translate in chat
+
+Every chat message (the partner's and your own) has a small "Translate" button under the bubble.
+Pressing it (Enter or Space works) shows the translation beneath the bubble in a hand-inked box, pressing again ("Hide translation") hides it.
+Nothing is translated until you press it.
+
+- Partner messages translate into your fluent language, your own messages into your partner's, both with `from: 'auto'` since either side may write in either language.
+- The result is cached per message, so hiding and showing does not call the server again. If translating fails, the same button becomes "Retry".
+- The UI lives in `Bilingle.translate.attachButton` (`public/translate.js`); `public/index.html` only calls it from `appendMessage`.
+- Message text is sent only to `/api/translate`, and from there to MyMemory (see above).
