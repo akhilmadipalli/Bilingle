@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/dictionary.css">
+<link rel="stylesheet" href="/subtitles.css">
 </head>
 <body>
 <!-- Original reusable doodles, drawn inline. -->
@@ -29,8 +30,9 @@
 <div class="explainer" aria-label="How it works"><p><span class="number">1</span>Bring a language</p><p><span class="number">2</span>Borrow another</p><p><span class="number">3</span>Talk to a human</p></div>
 </section>
 <section id="waiting" class="screen center-screen" hidden aria-labelledby="waiting-title"><svg viewBox="0 0 410 210" class="creature-scene" aria-hidden="true"><use href="#friends"/></svg><h1 id="waiting-title" class="screen-title" tabindex="-1">Finding your other half<span class="search-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></h1><p class="supporting">Someone who speaks what you’re learning,<br>and is learning what you speak. Nice, right?</p><div id="queue-list" class="queue-list" aria-label="Queued language pairs"></div><p class="supporting" style="font:20px var(--hand);margin-top:20px">One tiny moment. One big hello.</p><div class="center-actions"><button id="cancel" class="secondary">Cancel search</button></div></section>
-<section id="matched" class="screen match-screen" hidden aria-labelledby="matched-title"><div class="match-heading"><div><h1 id="matched-title" class="screen-title" tabindex="-1"></h1><p id="partner-info"></p></div><span class="hand-note">the first hello is the hardest!</span></div><div class="conversation"><div class="video-side"><div id="video-container" role="region" aria-label="Video call"></div>
-<div class="call-bottom"><button id="stop" class="stop">Stop</button></div></div>
+<section id="matched" class="screen match-screen" hidden aria-labelledby="matched-title"><div class="match-heading"><div><h1 id="matched-title" class="screen-title" tabindex="-1"></h1><p id="partner-info"></p></div><span class="hand-note">the first hello is the hardest!</span></div><div class="conversation"><div class="video-side"><div class="video-stage"><div id="video-container" role="region" aria-label="Video call"></div><div id="subtitles" class="subtitles" data-visible="false"></div></div>
+<div class="call-bottom"><button id="stop" class="stop">Stop</button><button id="cc-toggle" type="button" class="cc-toggle" aria-pressed="true">CC on</button><div class="speak-switch" role="radiogroup" aria-labelledby="speak-label"><span id="speak-label">I am speaking:</span><label><input type="radio" name="speak-lang" value="fluent" checked><span id="speak-fluent-text">fluent</span></label><label><input type="radio" name="speak-lang" value="learning"><span id="speak-learning-text">learning</span></label></div><label class="sub-mode"><span class="sr-only">Subtitle display</span><select id="subs-mode"><option value="both">Both</option><option value="original">Original</option><option value="translated">Translated</option></select></label></div>
+<p id="subs-note" class="subs-note" role="status"></p></div>
 <div class="chat-panel"><div class="chat-top"><h2>A little chat</h2><span>Words welcome, too.</span></div><div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation"></div><form id="chat-form" class="chat-form"><label for="message" class="sr-only">Your message</label><input id="message" placeholder="Try a hello..." maxlength="500" autocomplete="off" required><button id="send" class="primary" type="submit" disabled>Send</button></form></div></div></section>
 <section id="disconnected" class="screen center-screen disconnected" hidden aria-labelledby="disconnected-title"><svg class="disconnect-doodle" viewBox="0 0 340 200" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"><path d="M25 59q-2-12 13-11l81 4q12 0 10 14l-3 59q0 10-14 10H89l-19 18-1-19-30-1q-15 1-14-14Z" stroke="#6a90ee"/><path d="m52 78 1 10m42-8 1 10m-37 22q17-9 31 0m-57 24-11 13m99-17 19-21 5-17m-6 13 15-7m-14 8 15 4" stroke="#6a90ee"/><path d="M223 87q0-34 38-37 39-3 52 28 14 39-30 51l-3 17-17-14q-44 3-40-45Z" stroke="#e8636c"/><path d="m244 76 1 10m41-11 1 10m-34 21q13-8 24 0m-54 9-13-16-2-15m3 14-13-4m14 7-14 3m48 30-4 26m47-23 8 19" stroke="#e8636c"/><path d="m162 67 13 15-9 12 16 15m-27 12-7 8m42-76 8-7" stroke="#99a7bc" stroke-width="2"/></g></svg><h1 id="disconnected-title" class="screen-title" tabindex="-1">Stranger disconnected.</h1><p id="disconnect-copy" class="supporting">A little hello, then off they go.<br>There’s another conversation out there when you’re ready.</p><div class="center-actions"><button id="new" class="primary">New</button><button id="back-start" class="text-button">Back to start</button></div><p style="font:18px var(--hand);color:var(--muted);margin-top:25px">Your next hello is up to you.</p></section>
 </main>
@@ -39,6 +41,7 @@
 <!-- Served automatically by the socket.io server, no CDN needed. -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://unpkg.com/@daily-co/daily-js"></script>
+<script src="/subtitles.js"></script>
 <script src="/call.js"></script>
 <script src="/dictionary.js"></script>
 <script src="/translate.js"></script>
@@ -251,6 +254,11 @@
     $('send').disabled = true;
 
     Bilingle.dictionary.startSession({ learning: partner.fluentLang, fluent: partner.learningLang, langName });
+    // My side of the match is the reverse of the partner's; subtitles recognize my speech in these.
+    Bilingle.subtitles.configure({
+      fluent: partner.learningLang, learning: partner.fluentLang,
+      fluentName: langName(partner.learningLang), learningName: langName(partner.fluentLang),
+    });
     // The screen (and so the sized video frame) must be visible before Daily mounts into it.
     show('matched');
     joinCall(roomUrl, 'video-container');

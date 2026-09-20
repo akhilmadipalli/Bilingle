@@ -5,19 +5,26 @@ let callFrame = null;
 async function joinCall(roomUrl, containerElementId) {
   const container = document.getElementById(containerElementId);
 
-  callFrame = window.DailyIframe.createFrame(container, {
+  const frame = window.DailyIframe.createFrame(container, {
     iframeStyle: { width: '100%', height: '100%', border: '0' },
   });
+  callFrame = frame;
 
   // daily's own leave button ends the call without touching our app,
   // route it through the same path so the two arent out of sync
-  callFrame.on('left-meeting', () => leaveCall());
+  frame.on('left-meeting', () => leaveCall());
 
-  await callFrame.join({ url: roomUrl });
+  await frame.join({ url: roomUrl });
+
+  // live subtitles ride on Daily app messages; works for the prebuilt frame and call object mode.
+  // callFrame is null again if the call was torn down while we were joining
+  if (callFrame === frame && window.Bilingle && Bilingle.subtitles) Bilingle.subtitles.attach(frame);
 }
 
 // tears down the current call and releases the camera/mic
 async function leaveCall() {
+  // stop speech recognition first: every leave path (skip, partner-left, disconnect) comes through here
+  if (window.Bilingle && Bilingle.subtitles) Bilingle.subtitles.stop();
   if (!callFrame) return;
 
   const frame = callFrame;

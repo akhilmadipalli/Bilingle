@@ -150,3 +150,17 @@ Nothing is translated until you press it.
 - The result is cached per message, so hiding and showing does not call the server again. If translating fails, the same button becomes "Retry".
 - The UI lives in `Bilingle.translate.attachButton` (`public/translate.js`); `public/index.html` only calls it from `appendMessage`.
 - Message text is sent only to `/api/translate`, and from there to MyMemory (see above).
+
+## Live subtitles
+
+During a video call each browser recognizes **its own** speech and sends the text to the partner, whose page shows it as subtitles at the bottom of the video (last two lines, fading after about 6 seconds of silence) with a translation into the viewer's fluent language beneath it.
+
+- Client: `public/subtitles.js` (`Bilingle.subtitles`), styles in `public/subtitles.css`. `call.js` attaches it after joining (`Bilingle.subtitles.attach(callObject)`) and stops it in `leaveCall()`, so skip, partner-left and disconnect all stop recognition.
+- Transport: Daily app messages (`sendAppMessage(msg, '*')` and the `app-message` event), which work in both the Prebuilt frame and call object mode. No server change and no new socket event. Daily limits: 4 KB per message, not replayed to late joiners, no rate limit documented, so interim results are throttled to about 2 per second.
+- Message shape: `{ type: 'bilingle-subtitle', id, text, lang, final }` (`lang` is the ISO 639-1 code the speaker chose, `id` groups interim results with their final line).
+- Speech recognition: the browser's Web Speech API (`SpeechRecognition`), Chrome and Edge only, HTTPS or localhost, needs the microphone permission. Other browsers get "Live subtitles need Chrome or Edge" and everything else keeps working (they can still read the partner's subtitles).
+- Controls sit below the video: **CC on/off** (one switch: your speech is recognized and sent, and the partner's subtitles show), **I am speaking: fluent | learning** (recognition needs a language up front, default is your fluent one), and a **Both / Original / Translated** display choice.
+- Translation reuses `Bilingle.translate.translate` (see Translation service). If it fails the original line still shows.
+- Env vars: none.
+- Privacy: **your speech is sent to your browser vendor's speech service** (Google in Chrome, Microsoft in Edge). Translated text is sent to MyMemory through `/api/translate`, as described above.
+- Tests: `tests/subtitles-test.js` (part of `npm test`) uses a fake recognizer, transport and clock. It cannot cover real speech or a live Daily call.
