@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "test": "node tests/smoke-test.js && node tests/translate-test.js"
+    "test": "node tests/smoke-test.js && node tests/translate-test.js && node tests/dictionary-test.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

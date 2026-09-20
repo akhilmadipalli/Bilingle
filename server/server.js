@@ -25,6 +25,7 @@ const app = express();
 // Serve the manual test client (public/index.html) so opening
 // http://localhost:3001 in a browser gives us something to click around in.
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use('/api', require('./dictionary'));
 
 // Shared translation endpoint: POST /api/translate. See server/translate.js.
 app.use('/api', require('./translate'));
