@@ -7,8 +7,7 @@ An Omegle-style language exchange app. Pairs a user who knows language A and wan
 - Smart language pairing based on fluent/learning language pairs
 - Real-time text chat and video calls
 - Live-translation subtitles during conversation
-- Progress tracking and quizzes
-- Post-session feedback and rating
+- Persistent user profiles (Firebase)
 
 ## Stack
 
@@ -87,8 +86,60 @@ Disconnects are handled automatically - nothing to emit.
 - **Language codes must match exactly, reversed.** `en`/`tr` only ever pairs
   with `tr`/`en`. Agree on one code set (lowercase ISO 639-1) - `"EN"` vs
   `"en"` will silently never match and will look like a backend bug.
-- **Nothing is persisted.** A refresh is a brand new identity with no chat
-  history.
+- **The server persists nothing.** Queue state and matches live in memory
+  only, so a refresh is a brand new connection with no chat history. User
+  profiles do persist, but client-side via Firebase - see below.
+
+## User profiles (Firebase)
+
+Profiles are **client-authoritative**: the browser signs the user in with
+Firebase Auth, reads their profile from Firestore, and sends the same
+`join-queue` payload documented above. **The matchmaking server is not
+involved and does not change** - it never talks to Firebase and has no
+Firebase credentials.
+
+Suggested document shape, `users/{uid}`:
+
+```js
+{
+  displayName: "Alex",
+  fluentLangs: ["en", "es"],     // languages they can teach
+  learningLangs: ["tr", "fr"],   // languages they want to practise
+}
+```
+
+Two lists rather than stored pairs, because the pairs are chosen per session:
+the user picks from dropdowns populated by these lists, and the client turns
+that selection into the `pairs` array. Selecting two fluent and two learning
+languages produces four pairs, which is exactly what the multi-pair queueing
+support is for.
+
+```js
+socket.emit('join-queue', {
+  name: profile.displayName,
+  pairs: [
+    { fluentLang: 'en', learningLang: 'tr' },
+    { fluentLang: 'en', learningLang: 'fr' },
+    { fluentLang: 'es', learningLang: 'tr' },
+    { fluentLang: 'es', learningLang: 'fr' },
+  ],
+});
+```
+
+Two things to get right:
+
+- **Write Firestore security rules before shipping.** The Firebase web config
+  (`apiKey` and friends) is public by design and is not a secret - rules are
+  what actually protect the data. With the console's default test rules,
+  anyone can read and write every profile. At minimum, a user may only read
+  and write their own `users/{uid}` document.
+- **Language codes must match the socket contract exactly** - lowercase ISO
+  639-1. A dropdown emitting `"EN"` silently never matches `"en"`.
+
+Because the client asserts its own name and languages, a crafted socket event
+could claim to be anyone. That's acceptable while the app is anonymous
+stranger chat with no moderation; if blocking, reporting or reputation is ever
+added, the server will need to verify a Firebase ID token instead.
 
 ## Backend integration notes
 
