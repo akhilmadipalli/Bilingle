@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/dictionary.css">
 </head>
 <body>
 <!-- Original reusable doodles, drawn inline. -->
@@ -39,6 +40,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://unpkg.com/@daily-co/daily-js"></script>
 <script src="/call.js"></script>
+<script src="/dictionary.js"></script>
 <script>
 (() => {
   'use strict';
@@ -241,6 +243,7 @@
     $('message').value = '';
     $('send').disabled = true;
 
+    Bilingle.dictionary.startSession({ learning: partner.fluentLang, fluent: partner.learningLang, langName });
     // The screen (and so the sized video frame) must be visible before Daily mounts into it.
     show('matched');
     joinCall(roomUrl, 'video-container');

@@ -112,3 +112,30 @@ Disconnects are handled automatically - nothing to emit.
 - Results are cached in memory (500 entries). Nothing is stored on disk.
 - Provider: [MyMemory](https://mymemory.translated.net), free and keyless. **Text sent for translation is sent to MyMemory** (`api.mymemory.translated.net`). The provider lives alone in `server/translateProvider.js` (one function, `translate(text, from, to)`), so swapping it is a one-file change.
 - Optional env var in `server/.env`: `MYMEMORY_EMAIL` raises MyMemory's anonymous quota from 5000 to 50000 characters per day (the address is sent to MyMemory as the `de` parameter). The quota is per server IP, so set it before a demo.
+
+## In-session dictionary
+
+A "Dictionary" button in the match screen opens a panel with a search box and a
+switch between the two languages of the match. Double-clicking a word in a chat
+message opens the panel with that word looked up. Not-found and error states say
+what to try. No saved words, no history.
+
+`GET /api/define?word=&lang=&target=` (`server/dictionary.js`, mounted at `/api`):
+
+- `word` up to 100 characters, `lang` is the language of the word, `target` is
+  optional (the asker's fluent language, used for `translations`). Codes are
+  lowercase ISO 639-1 from `en es fr de it pt tr ja ko zh ar ru hi`.
+- `200 { word, lang, definitionLang, entries: [{ partOfSpeech, definitions: [string], examples: [string] }], translations?: [string], source }`
+- `400 { error }` bad input, `404 { error: 'not found' }`, `502 { error }` source unavailable.
+- Client: `Bilingle.dictionary.lookup(word, lang, target)` resolves to the body above and
+  rejects with an Error carrying `status`. `Bilingle.dictionary.startSession({ learning, fluent, langName })`
+  is called from the `matched` handler.
+- Definitions come in English (English Wiktionary), whatever the languages. When the
+  asker's fluent language is not English the panel says so and, if `Bilingle.translate`
+  is loaded, offers "Translate definitions".
+- Results are cached in memory for an hour. No API key and no env vars.
+
+Privacy: the looked-up word is sent to Wikimedia (en.wiktionary.org) and, as a
+fallback for some pages, to Kaikki.org. Wiktionary text is CC BY-SA, and each result
+links back to its Wiktionary page. Server requests use the User-Agent
+`Bilingle-hackathon/1.0 (https://github.com/akhilmadipalli/Bilingle)`.
