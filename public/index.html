@@ -6,18 +6,21 @@
   <style>
     body { font-family: system-ui, sans-serif; max-width: 560px; margin: 32px auto; padding: 0 16px; }
     h1 { font-size: 20px; }
+    h2 { font-size: 15px; margin-bottom: 4px; }
+    section { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e0e0e0; }
     label { display: block; margin-top: 8px; font-size: 13px; color: #444; }
     input { padding: 6px; box-sizing: border-box; }
     input.full { width: 100%; }
-    input.lang { width: 80px; }
+    select { padding: 6px; }
     button { padding: 6px 14px; margin-right: 8px; margin-top: 12px; }
+    #whoami { font-size: 13px; color: #444; }
     #pairs { margin-top: 12px; padding-left: 18px; font-size: 13px; }
     #pairs li { margin-bottom: 4px; }
     #pairs button { margin: 0 0 0 8px; padding: 1px 6px; font-size: 11px; }
     #status { margin-top: 16px; padding: 12px; border-radius: 4px; background: #f0f0f0; white-space: pre-wrap; }
     #status.matched { background: #e6f4ea; }
     #status.left { background: #fdecea; }
-    #chat { margin-top: 16px; }
+    #status.error { background: #fdecea; color: #8c1d18; }
     #log { border: 1px solid #ccc; height: 160px; overflow-y: auto; padding: 8px; font-size: 13px; }
     #log .me { color: #1a73e8; }
     #log .them { color: #c5221f; }
@@ -25,27 +28,46 @@
   </style>
 </head>
 <body>
-  <h1>Bilingle matchmaking test client</h1>
+  <h1>Bilingle</h1>
 
-  <label>Name <input id="name" class="full" value="Alex" /></label>
+  <div id="auth">
+    <button id="signIn">Sign in with Google</button>
+    <span id="whoami" class="hidden"></span>
+    <button id="signOut" class="hidden">Sign out</button>
+  </div>
 
-  <!-- A user can queue for several language pairs at once. In the real app
-       these come from dropdowns of the languages on the user's profile. -->
-  <label>Add a language pair (fluent -> learning)</label>
-  <input id="fluentLang" class="lang" value="en" />
-  <input id="learningLang" class="lang" value="tr" />
-  <button id="addPair">Add pair</button>
+  <!-- Profile lives in Firestore at users/{uid}. Stays visible while signed
+       in so languages can be edited without signing out. -->
+  <section id="profile" class="hidden">
+    <h2>Your profile</h2>
+    <label>Display name <input id="displayName" class="full" /></label>
+    <label>Fluent in (comma separated codes)
+      <input id="fluentLangs" class="full" placeholder="en, es" /></label>
+    <label>Learning (comma separated codes)
+      <input id="learningLangs" class="full" placeholder="tr, fr" /></label>
+    <button id="saveProfile">Save profile</button>
+  </section>
 
-  <ul id="pairs"></ul>
+  <!-- The dropdowns are populated from the profile above, so you can only
+       queue for languages you actually listed. -->
+  <section id="queue" class="hidden">
+    <h2>Queue</h2>
+    <label>Add a pair (fluent -> learning)</label>
+    <select id="fluentSelect"></select>
+    <select id="learningSelect"></select>
+    <button id="addPair">Add pair</button>
 
-  <button id="join">Join queue</button>
-  <!-- "Stop" = the `skip` event. Whoever clicks it IS auto-requeued. -->
-  <button id="skip" class="hidden">Stop</button>
-  <!-- Only shown after the PARTNER left - they are NOT auto-requeued, so
-       rejoining has to be a manual action. -->
-  <button id="new" class="hidden">New</button>
+    <ul id="pairs"></ul>
 
-  <div id="status">Not connected.</div>
+    <button id="join">Join queue</button>
+    <!-- "Stop" = the `skip` event. Whoever clicks it IS auto-requeued. -->
+    <button id="skip" class="hidden">Stop</button>
+    <!-- Only after the PARTNER left - they are NOT auto-requeued, so
+         rejoining has to be a manual action. -->
+    <button id="new" class="hidden">New</button>
+  </section>
+
+  <div id="status">Loading...</div>
 
   <div id="chat" class="hidden">
     <input id="message" class="full" placeholder="Type a message, press Enter" />
@@ -54,24 +76,44 @@
 
   <!-- Served automatically by the socket.io server, no CDN needed. -->
   <script src="/socket.io/socket.io.js"></script>
-  <script>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import {
+      getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+    } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+    import {
+      getFirestore, doc, getDoc, setDoc,
+    } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+    // Safe to commit: the web config is public by design. What actually
+    // protects the data is the Firestore security rules.
+    const firebaseConfig = {
+      apiKey: 'AIzaSyC6cChvPTklxZGBLUswkPauLptXlhsVdAs',
+      authDomain: 'bilingle.firebaseapp.com',
+      projectId: 'bilingle',
+      storageBucket: 'bilingle.firebasestorage.app',
+      messagingSenderId: '1082389815424',
+      appId: '1:1082389815424:web:e5e6f5359a66a496858665',
+    };
+
+    const firebaseApp = initializeApp(firebaseConfig);
+    const auth = getAuth(firebaseApp);
+    const db = getFirestore(firebaseApp);
+
     const socket = io();
 
-    const statusEl = document.getElementById('status');
-    const logEl = document.getElementById('log');
-    const chatEl = document.getElementById('chat');
-    const pairsEl = document.getElementById('pairs');
-    const joinBtn = document.getElementById('join');
-    const skipBtn = document.getElementById('skip');
-    const newBtn = document.getElementById('new');
-    const messageInput = document.getElementById('message');
+    const el = (id) => document.getElementById(id);
+    const statusEl = el('status');
+    const logEl = el('log');
+    const pairsEl = el('pairs');
 
-    // Every pair we're willing to be matched on. The server queues us once
-    // per pair, so more pairs means more chances to match.
-    let pairs = [{ fluentLang: 'en', learningLang: 'tr' }];
-
-    // Remembered from the `matched` event. The server does NOT put a sender
-    // name on chat messages, so this is what we label incoming lines with.
+    // The signed-in user's profile: { displayName, fluentLangs, learningLangs }
+    let profile = null;
+    // Pairs we're willing to match on this session, built from the profile.
+    let pairs = [];
+    // Saved from `matched` - the server doesn't put a sender name on chat
+    // messages, so this is what we label incoming lines with.
     let partnerName = null;
 
     function setStatus(text, cls) {
@@ -79,8 +121,16 @@
       statusEl.className = cls || '';
     }
 
-    function show(el, visible) {
-      el.classList.toggle('hidden', !visible);
+    function show(id, visible) {
+      el(id).classList.toggle('hidden', !visible);
+    }
+
+    // Lowercase + trim on the way in. This is the single most likely source
+    // of "matching is broken" reports: "EN" never matches "en".
+    function parseLangs(value) {
+      return [...new Set(
+        value.split(',').map((code) => code.trim().toLowerCase()).filter(Boolean)
+      )];
     }
 
     function renderPairs() {
@@ -102,6 +152,39 @@
       });
     }
 
+    function fillSelect(id, codes) {
+      const select = el(id);
+      select.innerHTML = '';
+
+      codes.forEach((code) => {
+        const option = document.createElement('option');
+        option.value = code;
+        option.textContent = code;
+        select.appendChild(option);
+      });
+    }
+
+    function showQueueFor(loadedProfile) {
+      profile = loadedProfile;
+
+      el('displayName').value = profile.displayName;
+      el('fluentLangs').value = profile.fluentLangs.join(', ');
+      el('learningLangs').value = profile.learningLangs.join(', ');
+
+      fillSelect('fluentSelect', profile.fluentLangs);
+      fillSelect('learningSelect', profile.learningLangs);
+
+      // Start with one pair so the common case is a single click.
+      pairs = [{
+        fluentLang: profile.fluentLangs[0],
+        learningLang: profile.learningLangs[0],
+      }];
+      renderPairs();
+
+      show('queue', true);
+      setStatus(`Signed in as ${profile.displayName}. Not in the queue yet.`);
+    }
+
     function log(who, text, cls) {
       const line = document.createElement('div');
       line.className = cls;
@@ -110,20 +193,104 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        profile = null;
+        pairs = [];
+        show('signIn', true);
+        show('whoami', false);
+        show('signOut', false);
+        show('profile', false);
+        show('queue', false);
+        show('chat', false);
+        setStatus('Sign in to start.');
+        return;
+      }
+
+      show('signIn', false);
+      show('signOut', true);
+      show('whoami', true);
+      el('whoami').textContent = user.email || user.uid;
+      show('profile', true);
+
+      try {
+        const snapshot = await getDoc(doc(db, 'users', user.uid));
+
+        if (snapshot.exists()) {
+          showQueueFor(snapshot.data());
+        } else {
+          // First sign-in: prefill what Google gave us and let them finish.
+          el('displayName').value = user.displayName || '';
+          setStatus('Fill in your languages and save to start matching.');
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus(`Could not load your profile: ${err.message}`, 'error');
+      }
+    });
+
+    el('signIn').addEventListener('click', async () => {
+      try {
+        await signInWithPopup(auth, new GoogleAuthProvider());
+      } catch (err) {
+        console.error(err);
+        setStatus(`Sign-in failed: ${err.message}`, 'error');
+      }
+    });
+
+    el('signOut').addEventListener('click', async () => {
+      // Leave any active match first, so the partner isn't left hanging.
+      socket.emit('skip');
+      await signOut(auth);
+    });
+
+    el('saveProfile').addEventListener('click', async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const next = {
+        displayName: el('displayName').value.trim(),
+        fluentLangs: parseLangs(el('fluentLangs').value),
+        learningLangs: parseLangs(el('learningLangs').value),
+      };
+
+      if (!next.displayName || !next.fluentLangs.length || !next.learningLangs.length) {
+        setStatus('Name, at least one fluent language and one learning language are required.', 'error');
+        return;
+      }
+
+      try {
+        await setDoc(doc(db, 'users', user.uid), next);
+        showQueueFor(next);
+      } catch (err) {
+        console.error(err);
+        setStatus(`Could not save your profile: ${err.message}`, 'error');
+      }
+    });
+
+    el('addPair').addEventListener('click', () => {
+      pairs.push({
+        fluentLang: el('fluentSelect').value,
+        learningLang: el('learningSelect').value,
+      });
+      renderPairs();
+    });
+
     function joinQueue() {
+      if (!profile) return;
+
       if (pairs.length === 0) {
-        setStatus('Add at least one language pair first.');
+        setStatus('Add at least one language pair first.', 'error');
         return;
       }
 
       // Note: we do NOT send socketId - the server takes it from the connection.
-      socket.emit('join-queue', {
-        name: document.getElementById('name').value,
-        pairs,
-      });
+      socket.emit('join-queue', { name: profile.displayName, pairs });
     }
 
-    socket.on('connect', () => setStatus(`Connected as ${socket.id}. Not in the queue yet.`));
+    el('join').addEventListener('click', joinQueue);
+    el('new').addEventListener('click', joinQueue);
+    el('skip').addEventListener('click', () => socket.emit('skip'));
 
     // `waiting` arrives in two flavors and they mean different things:
     //   - no payload                 -> we are in the queue, searching
@@ -131,21 +298,21 @@
     //     queue and must rejoin manually (classic Omegle "Stop" behavior)
     socket.on('waiting', (payload) => {
       partnerName = null;
-      show(chatEl, false);
+      show('chat', false);
 
       if (payload && payload.reason === 'partner-left') {
         setStatus('Stranger has disconnected.\nPress New to find someone else.', 'left');
-        show(joinBtn, false);
-        show(skipBtn, false);
-        show(newBtn, true);
+        show('join', false);
+        show('skip', false);
+        show('new', true);
         return;
       }
 
       const summary = pairs.map((p) => `${p.fluentLang}->${p.learningLang}`).join(', ');
       setStatus(`Searching for a partner...\nQueued for: ${summary}`);
-      show(joinBtn, false);
-      show(skipBtn, true);
-      show(newBtn, false);
+      show('join', false);
+      show('skip', true);
+      show('new', false);
     });
 
     socket.on('matched', ({ roomUrl, partner }) => {
@@ -159,43 +326,28 @@
         'matched'
       );
 
-      show(chatEl, true);
-      show(joinBtn, false);
-      show(skipBtn, true);
-      show(newBtn, false);
-      messageInput.focus();
+      show('chat', true);
+      show('join', false);
+      show('skip', true);
+      show('new', false);
+      el('message').focus();
     });
 
-    // Payload is just { text } - we label it with the name we stored above.
+    // Payload is just { text } - we label it with the name saved above.
     socket.on('chat-message', ({ text }) => {
       log(partnerName || 'Stranger', text, 'them');
     });
 
-    document.getElementById('addPair').addEventListener('click', () => {
-      const fluentLang = document.getElementById('fluentLang').value.trim();
-      const learningLang = document.getElementById('learningLang').value.trim();
-      if (!fluentLang || !learningLang) return;
-
-      pairs.push({ fluentLang, learningLang });
-      renderPairs();
-    });
-
-    joinBtn.addEventListener('click', joinQueue);
-    newBtn.addEventListener('click', joinQueue);
-    skipBtn.addEventListener('click', () => socket.emit('skip'));
-
-    messageInput.addEventListener('keydown', (event) => {
+    el('message').addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
 
-      const text = messageInput.value;
+      const text = event.target.value;
       if (!text.trim()) return;
 
       socket.emit('send-message', { text });
       log('You', text, 'me');
-      messageInput.value = '';
+      event.target.value = '';
     });
-
-    renderPairs();
   </script>
 </body>
 </html>
