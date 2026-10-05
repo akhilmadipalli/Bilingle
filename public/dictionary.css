@@ -1,0 +1,42 @@
+/* Dictionary panel. Reuses the page's tokens (--blue, --ink, --hand, --fr-*) and hand-inked frames. */
+.dict-open { min-width: 150px; margin-left: auto }
+#matched { position: relative }
+/* Desktop: sits over the lower left of the video so the chat stays readable. */
+.dict-panel { position: absolute; z-index: 20; left: 16px; bottom: 112px; width: min(390px, calc(100vw - 32px)); max-height: min(420px, calc(100vh - 380px)); display: flex; flex-direction: column; padding: 16px 18px 18px; border: 2px solid transparent; border-radius: 8px 16px 9px 13px / 12px 7px 14px 8px; background: var(--fr-blue-box) center/100% 100% no-repeat, white; overflow: hidden }
+.dict-panel[hidden] { display: none }
+.dict-top { display: flex; align-items: center; justify-content: space-between; gap: 12px }
+.dict-top h2 { font: 30px var(--hand); color: var(--blue); margin: 0 }
+.dict-close { width: 40px; height: 40px; border: 0; background: none; font: 30px/1 var(--hand); color: var(--muted); border-radius: 6px; cursor: pointer }
+.dict-close:hover { color: var(--red-deep); background: var(--wash) }
+.dict-langs { display: flex; gap: 8px; margin: 8px 0 12px }
+.dict-lang { flex: 1; min-height: 42px; border: 2px solid transparent; border-radius: 6px 10px 7px 8px; font: 21px var(--hand); color: var(--blue-deep); background: var(--fr-blue-wide-thin) center/100% 100% no-repeat, white; cursor: pointer }
+.dict-lang:hover { background: var(--fr-blue-wide-thin) center/100% 100% no-repeat, var(--wash) }
+.dict-lang[aria-pressed="true"] { background: var(--fr-blue-wide) center/100% 100% no-repeat, var(--blue-fill); color: var(--ink) }
+.dict-form { display: flex; gap: 8px; align-items: center }
+.dict-form input { font-size: 16px; min-height: 45px }
+.dict-form .primary { padding: 6px 14px; font-size: 21px; min-height: 45px; white-space: nowrap }
+.dict-status { margin: 12px 0 0; font-size: 14px; color: var(--muted) }
+.dict-status[hidden] { display: none }
+.dict-results { overflow: auto; margin-top: 4px; min-height: 0; overflow-wrap: anywhere }
+.dict-retry, .dict-translate { min-height: 40px; font-size: 20px; padding: 6px 16px; margin-top: 10px }
+.dict-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-top: 14px }
+.dict-word { font: 34px/1.1 var(--hand); color: var(--ink); margin: 0 }
+.dict-badge { font-size: 12px; color: var(--red-deep); border-bottom: 2px solid var(--red-fill) }
+.dict-note { font-size: 13px; color: var(--muted); margin: 8px 0 0 }
+.dict-translations { margin: 8px 0 0; font-size: 15px }
+.dict-tr-list { color: var(--blue-deep); font-weight: 600 }
+.dict-entry { margin-top: 14px }
+.dict-pos { font: 22px var(--hand); color: var(--red-deep); margin: 0 0 4px; background: var(--ul-red) bottom left/60px 5px no-repeat; padding-bottom: 5px; display: inline-block }
+.dict-defs { margin: 4px 0 0; padding-left: 22px; font-size: 15px }
+.dict-defs li { margin: 0 0 5px }
+.dict-translated { display: block; color: var(--blue-deep); font-size: 14px }
+.dict-examples { list-style: none; margin: 8px 0 0; padding: 4px 0 4px 12px; border-left: 3px solid var(--blue-fill); font-size: 14px; color: var(--muted) }
+.dict-examples li { margin: 0 0 4px }
+.dict-source { font-size: 12px; color: var(--muted); margin: 16px 0 0 }
+.dict-source a { color: var(--blue-deep) }
+.dict-open:focus-visible, .dict-panel :focus-visible { outline: 3px solid var(--red); outline-offset: 3px }
+@media (max-width: 760px) {
+  .dict-panel { position: fixed; left: 12px; right: 12px; bottom: 12px; width: auto; max-height: 72vh }
+  .dict-open { min-width: 0 }
+}
+@media (prefers-reduced-motion: reduce) { .dict-panel, .dict-panel * { transition: none !important; animation: none !important } }

@@ -153,6 +153,69 @@ added, the server will need to verify a Firebase ID token instead.
 - The smoke test replaces `server/rooms.js` through Node's require cache, so
   it never calls the live Daily API and needs no key.
 
+## Translation service
+
+`POST /api/translate` is the one shared translation endpoint (built by the chat-translate feature; live subtitles and anything else should call it instead of adding their own).
+
+- Request: JSON `{ text, from, to }` with lowercase ISO 639-1 codes. `from` may be `"auto"`.
+- `200 { translatedText, from, to }`, or `{ error }` with `400` (bad input, or text over 1000 characters), `429` (rate limited, 60 requests per minute per IP), `502` (the translation provider failed).
+- Client helper: `Bilingle.translate.translate(text, from, to)` in `public/translate.js` returns a Promise of the translated string and rejects with an `Error` on failure.
+- Results are cached in memory (500 entries). Nothing is stored on disk.
+- Provider: [MyMemory](https://mymemory.translated.net), free and keyless. **Text sent for translation is sent to MyMemory** (`api.mymemory.translated.net`). The provider lives alone in `server/translateProvider.js` (one function, `translate(text, from, to)`), so swapping it is a one-file change.
+- Optional env var in `server/.env`: `MYMEMORY_EMAIL` raises MyMemory's anonymous quota from 5000 to 50000 characters per day (the address is sent to MyMemory as the `de` parameter). The quota is per server IP, so set it before a demo.
+
+## In-session dictionary
+
+A "Dictionary" button in the match screen opens a panel with a search box and a
+switch between the two languages of the match. Double-clicking a word in a chat
+message opens the panel with that word looked up. Not-found and error states say
+what to try. No saved words, no history.
+
+`GET /api/define?word=&lang=&target=` (`server/dictionary.js`, mounted at `/api`):
+
+- `word` up to 100 characters, `lang` is the language of the word, `target` is
+  optional (the asker's fluent language, used for `translations`). Codes are
+  lowercase ISO 639-1 from `en es fr de it pt tr ja ko zh ar ru hi`.
+- `200 { word, lang, definitionLang, entries: [{ partOfSpeech, definitions: [string], examples: [string] }], translations?: [string], source }`
+- `400 { error }` bad input, `404 { error: 'not found' }`, `502 { error }` source unavailable.
+- Client: `Bilingle.dictionary.lookup(word, lang, target)` resolves to the body above and
+  rejects with an Error carrying `status`. `Bilingle.dictionary.startSession({ learning, fluent, langName })`
+  is called from the `matched` handler.
+- Definitions come in English (English Wiktionary), whatever the languages. When the
+  asker's fluent language is not English the panel says so and, if `Bilingle.translate`
+  is loaded, offers "Translate definitions".
+- Results are cached in memory for an hour. No API key and no env vars.
+
+Privacy: the looked-up word is sent to Wikimedia (en.wiktionary.org) and, as a
+fallback for some pages, to Kaikki.org. Wiktionary text is CC BY-SA, and each result
+links back to its Wiktionary page. Server requests use the User-Agent
+`Bilingle-hackathon/1.0 (https://github.com/akhilmadipalli/Bilingle)`.
+
+## Click-to-translate in chat
+
+Every chat message (the partner's and your own) has a small "Translate" button under the bubble.
+Pressing it (Enter or Space works) shows the translation beneath the bubble in a hand-inked box, pressing again ("Hide translation") hides it.
+Nothing is translated until you press it.
+
+- Partner messages translate into your fluent language, your own messages into your partner's, both with `from: 'auto'` since either side may write in either language.
+- The result is cached per message, so hiding and showing does not call the server again. If translating fails, the same button becomes "Retry".
+- The UI lives in `Bilingle.translate.attachButton` (`public/translate.js`); `public/index.html` only calls it from `appendMessage`.
+- Message text is sent only to `/api/translate`, and from there to MyMemory (see above).
+
+## Live subtitles
+
+During a video call each browser recognizes **its own** speech and sends the text to the partner, whose page shows it as subtitles at the bottom of the video (last two lines, fading after about 6 seconds of silence) with a translation into the viewer's fluent language beneath it.
+
+- Client: `public/subtitles.js` (`Bilingle.subtitles`), styles in `public/subtitles.css`. `call.js` attaches it after joining (`Bilingle.subtitles.attach(callObject)`) and stops it in `leaveCall()`, so skip, partner-left and disconnect all stop recognition.
+- Transport: Daily app messages (`sendAppMessage(msg, '*')` and the `app-message` event), which work in both the Prebuilt frame and call object mode. No server change and no new socket event. Daily limits: 4 KB per message, not replayed to late joiners, no rate limit documented, so interim results are throttled to about 2 per second.
+- Message shape: `{ type: 'bilingle-subtitle', id, text, lang, final }` (`lang` is the ISO 639-1 code the speaker chose, `id` groups interim results with their final line).
+- Speech recognition: the browser's Web Speech API (`SpeechRecognition`), Chrome and Edge only, HTTPS or localhost, needs the microphone permission. Other browsers get "Live subtitles need Chrome or Edge" and everything else keeps working (they can still read the partner's subtitles).
+- Controls sit below the video: **CC on/off** (one switch: your speech is recognized and sent, and the partner's subtitles show), **I am speaking: fluent | learning** (recognition needs a language up front, default is your fluent one), and a **Both / Original / Translated** display choice.
+- Translation reuses `Bilingle.translate.translate` (see Translation service). If it fails the original line still shows.
+- Env vars: none.
+- Privacy: **your speech is sent to your browser vendor's speech service** (Google in Chrome, Microsoft in Edge). Translated text is sent to MyMemory through `/api/translate`, as described above.
+- Tests: `tests/subtitles-test.js` (part of `npm test`) uses a fake recognizer, transport and clock. It cannot cover real speech or a live Daily call.
+
 ## Testing across two laptops
 
 `localhost` means "this machine", and the waiting pool lives in memory in a
