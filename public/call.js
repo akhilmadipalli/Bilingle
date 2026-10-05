@@ -1,36 +1,73 @@
 let callFrame = null;
 
-// mounts a daily call into the given container and joins immediately
-// no manual join button for the mvp, fires as soon as matched lands
-async function joinCall(roomUrl, containerElementId) {
-  const container = document.getElementById(containerElementId);
+function attach(element, participant, withAudio) {
+  if (!element) return;
 
-  const frame = window.DailyIframe.createFrame(container, {
-    iframeStyle: { width: '100%', height: '100%', border: '0' },
-  });
-  callFrame = frame;
+  const tracks = [];
+  if (participant) {
+    const video = participant.tracks && participant.tracks.video;
+    if (video && video.state === 'playable' && video.persistentTrack) {
+      tracks.push(video.persistentTrack);
+    }
+    if (withAudio) {
+      const audio = participant.tracks && participant.tracks.audio;
+      if (audio && audio.state === 'playable' && audio.persistentTrack) {
+        tracks.push(audio.persistentTrack);
+      }
+    }
+  }
 
-  // daily's own leave button ends the call without touching our app,
-  // route it through the same path so the two arent out of sync
-  frame.on('left-meeting', () => leaveCall());
+  const current = element.srcObject ? element.srcObject.getTracks() : [];
+  const unchanged =
+    current.length === tracks.length && tracks.every((track) => current.includes(track));
+  if (unchanged) return;
 
-  await frame.join({ url: roomUrl });
-
-  // live subtitles ride on Daily app messages; works for the prebuilt frame and call object mode.
-  // callFrame is null again if the call was torn down while we were joining
-  if (callFrame === frame && window.Bilingle && Bilingle.subtitles) Bilingle.subtitles.attach(frame);
+  element.srcObject = tracks.length ? new MediaStream(tracks) : null;
+  if (tracks.length) element.play().catch(() => {});
 }
 
-// tears down the current call and releases the camera/mic
+async function joinCall(roomUrl, containerElementId) {
+  const container = document.getElementById(containerElementId);
+  const selfVideo = container.querySelector('[data-video="self"]');
+  const partnerVideo = container.querySelector('[data-video="partner"]');
+
+  const call = window.DailyIframe.createCallObject();
+  callFrame = call;
+
+  const render = () => {
+    if (callFrame !== call) return;
+    const participants = call.participants();
+    attach(selfVideo, participants.local, false);
+    attach(partnerVideo, Object.values(participants).find((p) => !p.local), true);
+  };
+
+  call.on('joined-meeting', render);
+  call.on('participant-joined', render);
+  call.on('participant-updated', render);
+  call.on('participant-left', render);
+  call.on('track-started', render);
+  call.on('track-stopped', render);
+  call.on('left-meeting', () => leaveCall());
+
+  await call.join({ url: roomUrl });
+  render();
+
+  if (callFrame === call && window.Bilingle && Bilingle.subtitles) {
+    Bilingle.subtitles.attach(call);
+  }
+}
+
 async function leaveCall() {
-  // stop speech recognition first: every leave path (skip, partner-left, disconnect) comes through here
   if (window.Bilingle && Bilingle.subtitles) Bilingle.subtitles.stop();
   if (!callFrame) return;
 
-  const frame = callFrame;
-  callFrame = null; // clear first so a second call can't race this teardown
+  const call = callFrame;
+  callFrame = null;
 
-  await frame.leave();
-  await frame.destroy();
+  document.querySelectorAll('#video-container video').forEach((element) => {
+    element.srcObject = null;
+  });
+
+  await call.leave();
+  await call.destroy();
 }
-
