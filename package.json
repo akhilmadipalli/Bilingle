@@ -1,7 +1,7 @@
 {
   "name": "bilingle-matchmaking-server",
   "version": "1.0.0",
-  "description": "Bilingle matchmaking server - matches users by complementary language pairs and hands off room creation to Developer B's room-creation function.",
+  "description": "Bilingle server. Matches users on complementary language pairs and creates a Daily.co room for each match.",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
