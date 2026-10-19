@@ -19,16 +19,15 @@ An Omegle-style language exchange app. It matches someone who speaks language A 
 ## Repo layout
 
 ```
-client/    frontend (Micah)
-server/    backend - matchmaking (Akhil) + Daily.co room creation (Selim)
-public/    minimal reference client, served at http://localhost:3001
-tests/     smoke test for the matchmaking server
+server/      matchmaking, Daily.co room creation, translation and dictionary endpoints
+public/      the frontend, served at http://localhost:3001
+tests/       the test suites behind `npm test`
 GLOSSARY.md  canonical domain terms (Language Pair, Queue, Match, Partner, Skip)
 render.yaml  Render Blueprint for the bilingle.live deploy
 ```
 
-`server/.env` holds `DAILY_API_KEY` and is untracked - never commit it. Ask
-Selim for the current key.
+`server/.env` holds `DAILY_API_KEY`. Git ignores it, so never commit it. The
+key is in the Daily dashboard.
 
 ## Running the backend
 
