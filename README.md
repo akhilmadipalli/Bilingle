@@ -1,6 +1,6 @@
 # Bilingle
 
-An Omegle-style language exchange app. Pairs a user who knows language A and wants to learn language B with a user who knows B and wants to learn A, for real-time practice conversation.
+An Omegle-style language exchange app. It matches someone who speaks language A and is learning B with someone who speaks B and is learning A, so they can practise in a live conversation.
 
 ## Key features
 
