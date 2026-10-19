@@ -2,12 +2,13 @@
 
 An Omegle-style language exchange app. It matches someone who speaks language A and is learning B with someone who speaks B and is learning A, so they can practise in a live conversation.
 
-## Key features
+## Features
 
-- Smart language matching based on fluent/learning language pairs
-- Real-time text chat and video calls
-- Live-translation subtitles during conversation
-- Persistent user profiles (Firebase)
+- Matching on fluent and learning language pairs, including several pairs at once
+- Video calls with a text chat beside them
+- A translate button on every chat message
+- Live subtitles with translation during the call
+- An in-call dictionary that explains words in your own language
 
 ## Stack
 
