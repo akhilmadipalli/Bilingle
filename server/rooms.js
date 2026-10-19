@@ -12,7 +12,6 @@ async function createRoom() {
     body: JSON.stringify({
       properties: {
         // daily expects an absolute unix timestamp here, not a duration
-        // 2h: long enough for any call, short enough that leaked urls die fast
         exp: Math.floor(Date.now() / 1000) + 2 * 3600,
         // disable daily's built-in chat ui, app has its own chat panel
         enable_chat: false,

@@ -45,17 +45,14 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 const io = new Server(server, {
   cors: { origin: allowedOrigins },
-  // Every event we accept is tiny; the 1 MB default only helps a flooder.
   maxHttpBufferSize: 16 * 1024,
 });
 
-// Mirror the client's maxlength attributes in public/index.html.
 const MAX_NAME_LENGTH = 32;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_PAIRS = 20;
 const MAX_LANG_LENGTH = 10;
 
-// join-queue/skip each can create a paid Daily room, so cap them per socket.
 const QUEUE_EVENT_LIMIT = 10;
 const QUEUE_EVENT_WINDOW_MS = 10_000;
 
@@ -176,7 +173,6 @@ io.on('connection', (socket) => {
   // connection and is what we use as the key everywhere (pool, active
   // matches, users map) to identify "this particular tab".
 
-  // Timestamps of recent join-queue/skip events; lives and dies with the socket.
   let queueEventTimes = [];
   function queueEventAllowed() {
     const now = Date.now();

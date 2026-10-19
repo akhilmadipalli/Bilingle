@@ -244,7 +244,6 @@ async function run() {
   check('partner is notified on disconnect',
     davePayload !== 'timeout' && davePayload.reason === 'partner-left');
 
-  // 10. Abuse limits: oversized input is dropped, queue events are throttled.
   const mallory = await connect(url);
   const malloryWaiting = nextEvent(mallory, 'waiting');
   mallory.emit('join-queue', profile('M'.repeat(33), 'is', 'ga'));

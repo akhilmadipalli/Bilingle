@@ -5,9 +5,6 @@
   'use strict';
   const B = (window.Bilingle = window.Bilingle || {});
 
-  // Promise of { word, fluent, sections, source }.
-  // Rejects with an Error carrying `status` (404 = not found, 400 = bad word,
-  // 0 = could not reach our server, anything else = the edition failed).
   async function lookup(word, fluent) {
     const params = new URLSearchParams({ word, fluent });
     let res;
@@ -28,8 +25,6 @@
     return node;
   };
 
-  // `fluent` is my language and decides which wiktionary edition answers.
-  // `learning` is only used for wording. Set by startSession().
   let session = null;
   let ui = null;
   let ticket = 0;     // latest lookup wins
@@ -153,9 +148,6 @@
     }
   }
 
-  // level 2 headings are languages, deeper ones are that language's sections.
-  // they arrive already written in the reader's language, so they are shown
-  // as-is rather than translated or matched against a known list.
   function headingTag(level) {
     if (level <= 2) return 'h4';
     if (level === 3) return 'h5';
@@ -192,7 +184,6 @@
   }
 
   // Double-click a word in a chat message. The browser has already selected it.
-  // No language to guess any more: the edition is mine either way.
   function onChatDoubleClick(event) {
     const body = event.target.closest && event.target.closest('.message-body');
     if (!body || !session) return;

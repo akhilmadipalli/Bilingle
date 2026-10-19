@@ -1,10 +1,3 @@
-// In-session dictionary: GET /api/define?word=&fluent=
-//
-// a word is always explained in the reader's own language, so we query the
-// reader's own wiktionary edition: en.wiktionary for an English speaker,
-// tr.wiktionary for a Turkish one. both sides of a match use a different
-// edition. no api key; the looked-up word is the only thing sent.
-//
 // the REST /page/definition/ endpoint only exists on the English edition
 // (501 elsewhere), so we use the MediaWiki action API, which every edition
 // serves. it returns the page as plain text with wiki headings.
@@ -18,7 +11,6 @@ const FETCH_TIMEOUT_MS = 6000;
 const MAX_SECTIONS = 60;
 const MAX_SECTION_CHARS = 1200;
 
-// editions a user may pick. each is a real {code}.wiktionary.org site.
 const EDITIONS = new Set([
   'en', 'es', 'fr', 'de', 'it', 'pt', 'tr', 'ja', 'ko', 'zh', 'ar', 'ru', 'hi',
 ]);
@@ -36,12 +28,6 @@ function apiUrl(word, fluent) {
   return `https://${fluent}.wiktionary.org/w/api.php?${params}`;
 }
 
-// an extract looks like:
-//   == İngilizce ==
-//   === Köken ===
-//   Orta İngilizce dogge sözcüğünden.
-// level 2 is a language, deeper levels are its sections. headings stay
-// verbatim: they are already in the reader's language, which is the point.
 const HEADING = /^(={2,6})\s*(.+?)\s*\1$/;
 
 function parseExtract(extract) {
@@ -59,7 +45,6 @@ function parseExtract(extract) {
       continue;
     }
 
-    // body text before the first heading has no section to belong to.
     if (!current || current.text.length >= MAX_SECTION_CHARS) continue;
     current.text += current.text ? `\n${line}` : line;
   }
@@ -67,8 +52,6 @@ function parseExtract(extract) {
   return sections.slice(0, MAX_SECTIONS);
 }
 
-// returns { title, sections } or null when the edition has no such page.
-// throws when the edition could not be reached at all.
 async function fetchPage(word, fluent, fetchImpl) {
   const res = await fetchImpl(apiUrl(word, fluent), {
     headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
@@ -86,7 +69,6 @@ async function fetchPage(word, fluent, fetchImpl) {
 
 function createRouter({ fetchImpl = fetch, now = Date.now } = {}) {
   const router = express.Router();
-  // in-memory Map, oldest-out at CACHE_MAX; add a real LRU if the demo outgrows it.
   const cache = new Map();
 
   router.get('/define', async (req, res) => {
@@ -111,7 +93,6 @@ function createRouter({ fetchImpl = fetch, now = Date.now } = {}) {
         if (result) break;
       }
     } catch {
-      // never cached: the word may well exist once the edition is reachable.
       return res.status(502).json({ error: 'dictionary source unavailable' });
     }
 

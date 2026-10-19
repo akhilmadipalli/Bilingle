@@ -13,7 +13,6 @@
 .dict-word{margin:0;font-size:20px}
 .dict-note{margin:6px 0 0;font-size:14px}
 
-/* level 2 is a language heading, deeper levels are its sections */
 .dict-section{margin:12px 0 2px;font-size:14px}
 .dict-level-2{font-size:16px;border-bottom:1px solid #ccc;padding-bottom:2px}
 .dict-line{margin:0 0 4px;font-size:14px}

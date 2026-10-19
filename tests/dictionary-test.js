@@ -10,9 +10,6 @@ function check(name, condition) {
   condition ? passed++ : failed++;
 }
 
-// fake action-api pages, keyed by "{edition}:{title}". the same word appears
-// in two editions with different content, which is the whole point: each
-// reader gets their own language.
 const pages = {
   'en:house': {
     title: 'house',
@@ -26,7 +23,6 @@ const pages = {
     title: 'haus',
     extract: '== Deutsch ==\n\n\n=== Substantiv ===\nGebäude.',
   },
-  // redirects=1 resolves server-side, so the api answers under the target title
   'zh:学习': {
     title: '學習',
     extract: '== 漢語 ==\n\n\n=== 動詞 ===\n學習。',
@@ -71,15 +67,12 @@ async function main() {
   check('keeps every section', r.body.sections.length === 3 && r.body.sections[2].title === 'Verb');
   check('source links to the reader\'s own edition', r.body.source === 'https://en.wiktionary.org/wiki/house');
 
-  // the same word, read by a Turkish speaker, comes from tr.wiktionary with
-  // headings already in Turkish - no name mapping anywhere.
   r = await get({ word: 'dog', fluent: 'tr' });
   check('a different edition answers for a different reader',
     r.status === 200 && r.body.sections[0].title === 'İngilizce');
   check('headings are kept verbatim, not translated',
     r.body.sections[1].title === 'Köken' && r.body.sections[1].text === 'Orta İngilizce dogge.');
 
-  // english has no page for it, so the english reader gets nothing
   check('a word missing from one edition 404s there', (await get({ word: 'dog', fluent: 'en' })).status === 404);
 
   const before = calls.length;
