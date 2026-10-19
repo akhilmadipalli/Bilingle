@@ -175,46 +175,50 @@ own.
 - Provider: [MyMemory](https://mymemory.translated.net), free and keyless. **The server sends all text for translation to MyMemory** (`api.mymemory.translated.net`). The provider is one function, `translate(text, from, to)`, alone in `server/translateProvider.js`, so swapping it is a one-file change.
 - Optional env var: `MYMEMORY_EMAIL` raises MyMemory's anonymous quota from 5000 to 50000 characters per day. The server sends the address to MyMemory as the `de` parameter. The quota is per server IP, so set it before a demo.
 
-## In-session dictionary
+## In-call dictionary
 
 A "Dictionary" button in the match screen opens a panel with a search box.
-Double-clicking a word in a chat message opens the panel with that word looked
-up. No saved words, no history.
+Double-clicking a word in a chat message opens the panel and looks that word
+up. It saves no words and keeps no history.
 
-A word is always explained in **the reader's own language**, so each side of a
-match queries a different Wiktionary edition: an English speaker gets
-`en.wiktionary`, their Turkish partner gets `tr.wiktionary`. Looking up `dog`
-gives the English reader an English entry and the Turkish reader the same word
-under `İngilizce`, explained in Turkish. There is no language switch - the page
-covers whichever of the two languages the word belongs to.
+The dictionary always explains a word in **the reader's own language**, so
+each side of a match queries a different Wiktionary edition. An English
+speaker gets `en.wiktionary` and their Turkish partner gets `tr.wiktionary`.
+Looking up `dog` gives the English reader an English entry, and gives the
+Turkish reader the same word under `İngilizce`, explained in Turkish. There is
+no language switch, because the page covers whichever of the two languages the
+word belongs to.
 
 `GET /api/define?word=&fluent=` (`server/dictionary.js`, mounted at `/api`):
 
-- `word` up to 100 characters; `fluent` is the reader's language and selects the
-  edition. Codes are lowercase ISO 639-1 from `en es fr de it pt tr ja ko zh ar ru hi`.
-- `200 { word, fluent, sections: [{ level, title, text }], source }` - `sections`
-  is the page flattened in reading order, where level 2 is a language heading and
-  deeper levels are its sections. Headings are kept verbatim, in the edition's own
+- `word` is up to 100 characters. `fluent` is the reader's language and picks
+  the edition. Codes are lowercase ISO 639-1 from `en es fr de it pt tr ja ko zh ar ru hi`.
+- `200 { word, fluent, sections: [{ level, title, text }], source }`.
+  `sections` is the page in reading order. Level 2 is a language heading, and
+  deeper levels are its sections. Headings stay verbatim, in the edition's own
   language, because that is the language the reader reads.
-- `400 { error }` bad input, `404 { error: 'not found' }`, `502 { error }` edition unavailable.
-- Client: `Bilingle.dictionary.lookup(word, fluent)` resolves to the body above and
-  rejects with an Error carrying `status`. `Bilingle.dictionary.startSession({ learning, fluent, langName })`
-  is called from the `matched` handler.
-- Source is the MediaWiki action API (`action=query&prop=extracts&explaintext=1`),
-  which every edition serves. The REST `/page/definition/` endpoint is English-only
-  (501 elsewhere), which is why it isn't used. Plain text rather than parsed HTML,
-  so nothing from the source is ever injected into the page.
-- Results are cached in memory for an hour, keyed by edition and word. Misses are
-  cached too; upstream failures are not. No API key and no env vars.
+- `400 { error }` for bad input, `404 { error: 'not found' }`, and
+  `502 { error }` when the edition is unavailable.
+- Client: `Bilingle.dictionary.lookup(word, fluent)` resolves to the body
+  above and rejects with an Error that carries `status`. The `matched` handler
+  calls `Bilingle.dictionary.startSession({ learning, fluent, langName })`.
+- The source is the MediaWiki action API (`action=query&prop=extracts&explaintext=1`),
+  which every edition serves. The REST `/page/definition/` endpoint exists only
+  on the English edition and returns 501 elsewhere. The API returns plain text,
+  not HTML, so the page never injects anything from the source.
+- The server caches results in memory for an hour, keyed by edition and word.
+  It caches misses too, but not upstream failures. It needs no API key and no
+  env vars.
 
-Known gap: smaller editions have far less coverage than `en.wiktionary`, so a
-non-English reader will hit misses an English one never sees. Inflected forms
-(`gidiyorum` vs `gitmek`) miss in every edition. An opt-in LLM lookup is the
-planned answer to both.
+Known gap: smaller editions cover far fewer words than `en.wiktionary`, so a
+non-English reader misses words an English reader finds. Every edition misses
+inflected forms, such as `gidiyorum` for `gitmek`. The plan for both is an
+opt-in LLM lookup.
 
-Privacy: the looked-up word is sent to Wikimedia, to the reader's own edition.
-Wiktionary text is CC BY-SA, and each result links back to its page. Server
-requests use the User-Agent `Bilingle/1.0 (https://github.com/akhilmadipalli/Bilingle)`.
+Privacy: the server sends the looked-up word to Wikimedia, to the reader's own
+edition. Wiktionary text is CC BY-SA, and each result links back to its page.
+The server identifies itself with the User-Agent
+`Bilingle/1.0 (https://github.com/akhilmadipalli/Bilingle)`.
 
 ## Click-to-translate in chat
 
