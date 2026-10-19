@@ -278,21 +278,20 @@ shows the last two lines, and they fade after about 6 seconds of silence.
 
 ## Testing across two laptops
 
-`localhost` means "this machine", and the waiting pool lives in memory in a
-single process - so if two people each run `npm start`, they sit in two
-separate pools and will never match. One person runs the server, everyone
-connects to that machine:
+`localhost` means "this machine", and the waiting pool lives in the memory of
+one process. If each laptop runs `npm start`, they have two separate pools and
+never match. Run the server on one machine and connect every browser to it:
 
 ```bash
 ipconfig getifaddr en0     # the host machine's LAN ip, e.g. 172.29.23.42
 ```
 
-Everyone else opens `http://<that-ip>:3001`. Only the host machine needs
-`server/.env`. Allow the incoming connection if macOS prompts about `node`.
+The other laptop opens `http://<that-ip>:3001`. Only the host machine needs
+`server/.env`. Allow the incoming connection if macOS asks about `node`.
 
-Note that camera/mic access is blocked on a plain `http://` LAN address -
-browsers only allow it on `https://` or `localhost` - so video needs a real
-deployment, though text chat works fine this way.
+Browsers block the camera and microphone on a plain `http://` LAN address and
+allow them only on `https://` or `localhost`. Text chat works this way, but
+video needs the real deployment.
 
 ## Deployment
 
