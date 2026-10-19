@@ -53,7 +53,7 @@ function connect(url) {
 }
 
 // Resolves with the event payload, or with the string 'timeout' if the event
-// never arrives - lets us assert both "this should happen" and "this should
+// never arrives. That lets us assert both "this should happen" and "this should
 // NOT happen" without hanging the suite.
 function nextEvent(socket, eventName, timeoutMs = 500) {
   return new Promise((resolve) => {
@@ -133,7 +133,7 @@ async function run() {
   check('skipped-on user is not auto-rematched', (await bobStillIdle) === 'timeout');
 
   // 5. Multi-pair queueing: a user queued for several pairs can match on any
-  //    of them, and the match reports the pair actually used - not the first
+  //    of them, and the match reports the pair actually used, not the first
   //    pair in their list.
   const polly = await connect(url);
   const stefan = await connect(url);
