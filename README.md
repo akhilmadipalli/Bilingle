@@ -99,15 +99,14 @@ The server handles disconnects itself. The client emits nothing.
 ## User profiles (Firebase, not built yet)
 
 None of this exists in code. Users type a name and pick languages on every
-visit. This section is the agreed design for when profiles are built.
+visit. This section is the design for when profiles are built.
 
-Profiles are **client-authoritative**: the browser signs the user in with
+Profiles will be **client-authoritative**. The browser signs the user in with
 Firebase Auth, reads their profile from Firestore, and sends the same
-`join-queue` payload documented above. **The matchmaking server is not
-involved and does not change** - it never talks to Firebase and has no
-Firebase credentials.
+`join-queue` payload documented above. **The matchmaking server does not
+change.** It never talks to Firebase and has no Firebase credentials.
 
-Suggested document shape, `users/{uid}`:
+The document shape, `users/{uid}`:
 
 ```js
 {
@@ -117,11 +116,10 @@ Suggested document shape, `users/{uid}`:
 }
 ```
 
-Two lists rather than stored pairs, because the pairs are chosen per session:
-the user picks from dropdowns populated by these lists, and the client turns
-that selection into the `pairs` array. Selecting two fluent and two learning
-languages produces four pairs, which is exactly what the multi-pair queueing
-support is for.
+The profile stores two lists, not pairs, because the user chooses pairs per
+session. They pick from dropdowns filled from these lists, and the client
+turns that choice into the `pairs` array. Two fluent and two learning
+languages make four pairs, which multi-pair queueing already handles.
 
 ```js
 socket.emit('join-queue', {
@@ -138,17 +136,17 @@ socket.emit('join-queue', {
 Two things to get right:
 
 - **Write Firestore security rules before shipping.** The Firebase web config
-  (`apiKey` and friends) is public by design and is not a secret - rules are
-  what actually protect the data. With the console's default test rules,
-  anyone can read and write every profile. At minimum, a user may only read
-  and write their own `users/{uid}` document.
-- **Language codes must match the socket contract exactly** - lowercase ISO
-  639-1. A dropdown emitting `"EN"` silently never matches `"en"`.
+  (`apiKey` and the rest) is public by design and is not a secret. The rules
+  protect the data. With the console's default test rules, anyone can read and
+  write every profile. At minimum, a user may only read and write their own
+  `users/{uid}` document.
+- **Language codes must match the socket contract exactly**, in lowercase ISO
+  639-1. A dropdown that emits `"EN"` never matches `"en"`.
 
 Because the client asserts its own name and languages, a crafted socket event
-could claim to be anyone. That's acceptable while the app is anonymous
-stranger chat with no moderation; if blocking, reporting or reputation is ever
-added, the server will need to verify a Firebase ID token instead.
+can claim to be anyone. That's acceptable while the app is anonymous stranger
+chat with no moderation. If blocking, reporting or reputation is ever added,
+the server will need to verify a Firebase ID token instead.
 
 ## Backend integration notes
 
