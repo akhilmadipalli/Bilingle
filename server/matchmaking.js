@@ -26,8 +26,7 @@ function findAndRemoveMatch(fluentLang, learningLang) {
 }
 
 // Removes EVERY entry belonging to this socket, across all pairs. Used on
-// disconnect, on match, and when a user
-// re-queues with a different language selection.
+// disconnect, on match, and when a user re-queues with different languages.
 // Returns how many entries were dropped.
 function removeFromQueue(socketId) {
   let removed = 0;
