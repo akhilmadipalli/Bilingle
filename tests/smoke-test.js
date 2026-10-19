@@ -1,7 +1,7 @@
 // End-to-end checks for the matchmaking server, run with `npm test`.
 //
-// These talk to a real server over real socket connections - the only thing
-// faked is Selim's Daily.co module. We swap it out via Node's require cache
+// These talk to a real server over real socket connections. The only fake is
+// the Daily.co module, server/rooms.js. We swap it out via Node's require cache
 // BEFORE requiring the server, so that:
 //   - tests never hit the live Daily API (no key needed, no real rooms made)
 //   - room creation is deterministic, and we can force it to fail on demand
@@ -14,7 +14,7 @@ let failNextRoom = false;
 let roomCounter = 0;
 
 const fakeRooms = {
-  // Same shape as Selim's real one: resolves to { roomUrl }, not a string.
+  // Same shape as the real one. It resolves to { roomUrl }, not a string.
   createRoom: async () => {
     if (failNextRoom) throw new Error('simulated Daily.co failure');
     roomCounter += 1;
