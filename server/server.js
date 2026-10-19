@@ -16,7 +16,7 @@ const { createRoom } = require('./rooms');
 // The waiting pool: users who've joined but haven't been matched yet.
 const { addToQueue, findAndRemoveMatch, removeFromQueue } = require('./matchmaking');
 
-// Active match tracking: who's currently paired with who, and their room.
+// Active matches: who is matched with whom, and their room.
 const { createMatch, getMatch, endMatch } = require('./activeMatches');
 
 const PORT = process.env.PORT || 3001;
