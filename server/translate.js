@@ -14,8 +14,9 @@ const CODE = /^[a-z]{2}$/;
 function createRouter({ provider = defaultProvider, limit = 60, windowMs = 60_000 } = {}) {
   const router = express.Router();
 
-  // ponytail: in-memory FIFO cache and fixed-window rate limit; both reset on
-  // restart and are per-process, fine for one demo server.
+  // shortcut: in-memory FIFO cache and fixed-window rate limit, both lost on
+  // restart and per-process. Move them to a shared store before running more
+  // than one instance.
   const cache = new Map(); // "from|to|text" -> translatedText
   const hits = new Map(); // ip -> { count, resetAt }
 

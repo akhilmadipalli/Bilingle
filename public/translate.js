@@ -26,7 +26,8 @@ window.Bilingle.translate = {
 
   // One click shows the translation under the bubble, the next hides it. The
   // same button is also the retry after a failure. Nothing is sent until pressed.
-  // ponytail: result cached per message element only, not shared across messages.
+  // shortcut: the result is cached per message element, so two identical
+  // messages each make a request. Share the cache if that ever shows up.
   attachButton(item, text, to) {
     const id = `translation-${++uid}`;
     const button = document.createElement('button');
