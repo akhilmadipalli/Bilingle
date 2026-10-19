@@ -5,12 +5,11 @@
   'use strict';
   const B = (window.Bilingle = window.Bilingle || {});
 
-  // Promise of { word, lang, definitionLang, entries, translations?, source }.
+  // Promise of { word, fluent, sections, source }.
   // Rejects with an Error carrying `status` (404 = not found, 400 = bad word,
-  // 0 = could not reach our server, anything else = the source failed).
-  async function lookup(word, lang, target) {
-    const params = new URLSearchParams({ word, lang });
-    if (target) params.set('target', target);
+  // 0 = could not reach our server, anything else = the edition failed).
+  async function lookup(word, fluent) {
+    const params = new URLSearchParams({ word, fluent });
     let res;
     try {
       res = await fetch(`/api/define?${params}`);
@@ -29,11 +28,10 @@
     return node;
   };
 
-  // The two languages of this match: `learning` is the one I practice (my
-  // partner's fluent language), `fluent` is mine. Set by startSession().
+  // `fluent` is my language and decides which wiktionary edition answers.
+  // `learning` is only used for wording. Set by startSession().
   let session = null;
   let ui = null;
-  let current = null; // language code currently selected
   let ticket = 0;     // latest lookup wins
   let opener = null;
 
@@ -57,10 +55,6 @@
     close.setAttribute('aria-label', 'Close dictionary');
     top.append(title, close);
 
-    const switcher = el('div', 'dict-langs');
-    switcher.setAttribute('role', 'group');
-    switcher.setAttribute('aria-label', 'Dictionary language');
-
     const form = el('form', 'dict-form');
     const label = el('label', 'sr-only', 'Word to look up');
     label.htmlFor = 'dict-word';
@@ -79,7 +73,7 @@
     status.setAttribute('role', 'status');
     const results = el('div', 'dict-results');
 
-    panel.append(top, switcher, form, status, results);
+    panel.append(top, form, status, results);
 
     button.addEventListener('click', () => (panel.hidden ? open() : closePanel()));
     close.addEventListener('click', closePanel);
@@ -96,23 +90,7 @@
 
     document.querySelector('.call-bottom').append(button);
     document.getElementById('matched').append(panel);
-    return { button, panel, switcher, input, status, results };
-  }
-
-  function renderSwitcher() {
-    ui.switcher.replaceChildren(...[session.learning, session.fluent].map((code) => {
-      const b = el('button', 'dict-lang', session.langName(code));
-      b.type = 'button';
-      b.lang = code;
-      b.setAttribute('aria-pressed', String(code === current));
-      b.addEventListener('click', () => {
-        current = code;
-        renderSwitcher();
-        if (ui.input.value.trim()) search(ui.input.value);
-        else ui.input.focus();
-      });
-      return b;
-    }));
+    return { button, panel, input, status, results };
   }
 
   function setStatus(text) {
@@ -122,121 +100,88 @@
 
   function idle() {
     ui.results.replaceChildren();
-    setStatus(`Type a word in ${session.langName(current)}, or double-click any word in the chat.`);
+    setStatus('Type a word in either language, or double-click any word in the chat.');
   }
 
-  function open(word, lang) {
+  function open(word) {
     if (!session) return;
     if (ui.panel.hidden) opener = document.activeElement;
     ui.panel.hidden = false;
     ui.button.setAttribute('aria-expanded', 'true');
-    if (lang) current = lang;
-    renderSwitcher();
+
     if (word) {
       ui.input.value = word;
       search(word);
-    } else if (!ui.results.hasChildNodes()) {
+    } else if (!ui.results.childElementCount) {
       idle();
     }
     ui.input.focus();
-    ui.input.select();
   }
 
   function closePanel() {
     ui.panel.hidden = true;
     ui.button.setAttribute('aria-expanded', 'false');
     ticket++;
-    const back = opener && document.contains(opener) && !opener.closest('[hidden]') ? opener : ui.button;
+    if (opener && document.contains(opener)) opener.focus();
     opener = null;
-    back.focus();
   }
 
   async function search(raw) {
     const word = raw.trim();
     if (!word) return;
-    const lang = current;
     const mine = ++ticket;
     ui.results.replaceChildren();
-    setStatus(`Looking up “${word}” in ${session.langName(lang)}…`);
+    setStatus(`Looking up “${word}”…`);
     try {
-      const data = await lookup(word, lang, session.fluent);
+      const data = await lookup(word, session.fluent);
       if (mine === ticket) render(data, word);
     } catch (err) {
-      if (mine === ticket) fail(err, word, lang);
+      if (mine === ticket) fail(err, word);
     }
   }
 
-  function fail(err, word, lang) {
+  function fail(err, word) {
     ui.results.replaceChildren();
-    const other = lang === session.learning ? session.fluent : session.learning;
     if (err.status === 404) {
-      setStatus(`No entry for “${word}” in ${session.langName(lang)}. Check the spelling, try the base form (singular, infinitive), or switch language.`);
-      const retry = el('button', 'secondary dict-retry', `Try in ${session.langName(other)}`);
-      retry.type = 'button';
-      retry.addEventListener('click', () => {
-        current = other;
-        renderSwitcher();
-        search(word);
-      });
-      ui.results.append(retry);
+      setStatus(`No entry for “${word}” in the ${session.langName(session.fluent)} Wiktionary. Check the spelling, or try the base form (singular, infinitive).`);
     } else if (err.status === 400) {
-      setStatus('That does not look like a word. Type one word or a short phrase, up to 100 characters, with at least one letter.');
+      setStatus('That does not look like a word.');
+    } else if (err.status === 0) {
+      setStatus('Could not reach the server. Check your connection.');
     } else {
-      setStatus('The dictionary could not be reached. Your word is fine - wait a moment and press Look up again.');
+      setStatus('The dictionary source is unavailable right now. Try again shortly.');
     }
+  }
+
+  // level 2 headings are languages, deeper ones are that language's sections.
+  // they arrive already written in the reader's language, so they are shown
+  // as-is rather than translated or matched against a known list.
+  function headingTag(level) {
+    if (level <= 2) return 'h4';
+    if (level === 3) return 'h5';
+    return 'h6';
   }
 
   function render(data, asked) {
-    const lang = data.lang;
-    const head = el('div', 'dict-head');
+    const nodes = [];
     const headword = el('h3', 'dict-word', data.word);
-    headword.lang = lang;
-    head.append(headword, el('span', 'dict-badge', session.langName(lang)));
-    const nodes = [head];
+    headword.lang = data.fluent;
+    nodes.push(headword);
 
-    if (data.word !== asked) nodes.push(el('p', 'dict-note', `Showing the entry “${data.word}” for “${asked}”.`));
-    if (data.translations && data.translations.length) {
-      const tr = el('p', 'dict-translations', `In ${session.langName(session.fluent)}: `);
-      const list = el('span', 'dict-tr-list', data.translations.join(', '));
-      list.lang = session.fluent;
-      tr.append(list);
-      nodes.push(tr);
+    if (data.word !== asked) {
+      nodes.push(el('p', 'dict-note', `Showing the entry “${data.word}” for “${asked}”.`));
     }
 
-    // Definitions are in the source's language (English), not always the user's.
-    const defLang = data.definitionLang;
-    const foreign = defLang && defLang !== session.fluent;
-    if (foreign) {
-      nodes.push(el('p', 'dict-note', `No ${session.langName(session.fluent)} definitions for this source, so these are in ${session.langName(defLang)}.`));
-      if (B.translate && typeof B.translate.translate === 'function') nodes.push(translateButton(defLang));
-    }
-
-    for (const entry of data.entries) {
-      const article = el('article', 'dict-entry');
-      article.append(el('h4', 'dict-pos', entry.partOfSpeech || 'entry'));
-      const defs = el('ol', 'dict-defs');
-      defs.lang = defLang || 'en';
-      for (const text of entry.definitions) {
-        const li = el('li');
-        li.append(el('span', 'dict-def', text));
-        defs.append(li);
+    for (const section of data.sections) {
+      nodes.push(el(headingTag(section.level), `dict-section dict-level-${section.level}`, section.title));
+      for (const line of section.text.split('\n')) {
+        if (line) nodes.push(el('p', 'dict-line', line));
       }
-      article.append(defs);
-      if (entry.examples && entry.examples.length) {
-        const examples = el('ul', 'dict-examples');
-        for (const text of entry.examples) {
-          const li = el('li', '', text);
-          li.lang = lang;
-          examples.append(li);
-        }
-        article.append(examples);
-      }
-      nodes.push(article);
     }
 
     const source = el('p', 'dict-source', 'Source: ');
-    const link = el('a', '', data.source);
-    link.href = `https://en.wiktionary.org/wiki/${encodeURIComponent(data.word)}`;
+    const link = el('a', '', 'Wiktionary');
+    link.href = data.source;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     source.append(link);
@@ -246,43 +191,14 @@
     ui.results.replaceChildren(...nodes);
   }
 
-  // Optional: only offered when the shared translation service is loaded.
-  function translateButton(defLang) {
-    const button = el('button', 'secondary dict-translate', `Translate definitions to ${session.langName(session.fluent)}`);
-    button.type = 'button';
-    button.addEventListener('click', async () => {
-      button.disabled = true;
-      button.textContent = 'Translating…';
-      const spans = [...ui.results.querySelectorAll('.dict-def')].slice(0, 12);
-      let failed = false;
-      for (const span of spans) {
-        if (span.nextSibling) continue;
-        try {
-          const text = await B.translate.translate(span.textContent, defLang, session.fluent);
-          const out = el('span', 'dict-translated', text);
-          out.lang = session.fluent;
-          span.after(out);
-        } catch {
-          failed = true;
-          break;
-        }
-      }
-      button.disabled = false;
-      button.textContent = failed ? 'Translation failed, try again' : 'Translated';
-      button.disabled = !failed;
-    });
-    return button;
-  }
-
   // Double-click a word in a chat message. The browser has already selected it.
+  // No language to guess any more: the edition is mine either way.
   function onChatDoubleClick(event) {
     const body = event.target.closest && event.target.closest('.message-body');
     if (!body || !session) return;
     const word = String(window.getSelection()).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
     if (!word) return;
-    const mine = body.closest('.message').classList.contains('author-self');
-    // A partner writes in their fluent language; I mostly write in mine.
-    open(word.slice(0, 100), mine ? session.fluent : session.learning);
+    open(word.slice(0, 100));
   }
 
   // Called from the `matched` handler. `learning` = partner.fluentLang,
@@ -293,14 +209,12 @@
       document.getElementById('messages').addEventListener('dblclick', onChatDoubleClick);
     }
     session = { learning, fluent, langName };
-    current = learning;
     ui.panel.hidden = true;
     ui.button.setAttribute('aria-expanded', 'false');
     ui.input.value = '';
     ui.results.replaceChildren();
     ticket++;
-    renderSwitcher();
   }
 
-  B.dictionary = { lookup, startSession, open: (word, lang) => open(word, lang) };
+  B.dictionary = { lookup, startSession, open: (word) => open(word) };
 })();

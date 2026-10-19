@@ -166,30 +166,44 @@ added, the server will need to verify a Firebase ID token instead.
 
 ## In-session dictionary
 
-A "Dictionary" button in the match screen opens a panel with a search box and a
-switch between the two languages of the match. Double-clicking a word in a chat
-message opens the panel with that word looked up. Not-found and error states say
-what to try. No saved words, no history.
+A "Dictionary" button in the match screen opens a panel with a search box.
+Double-clicking a word in a chat message opens the panel with that word looked
+up. No saved words, no history.
 
-`GET /api/define?word=&lang=&target=` (`server/dictionary.js`, mounted at `/api`):
+A word is always explained in **the reader's own language**, so each side of a
+match queries a different Wiktionary edition: an English speaker gets
+`en.wiktionary`, their Turkish partner gets `tr.wiktionary`. Looking up `dog`
+gives the English reader an English entry and the Turkish reader the same word
+under `İngilizce`, explained in Turkish. There is no language switch - the page
+covers whichever of the two languages the word belongs to.
 
-- `word` up to 100 characters, `lang` is the language of the word, `target` is
-  optional (the asker's fluent language, used for `translations`). Codes are
-  lowercase ISO 639-1 from `en es fr de it pt tr ja ko zh ar ru hi`.
-- `200 { word, lang, definitionLang, entries: [{ partOfSpeech, definitions: [string], examples: [string] }], translations?: [string], source }`
-- `400 { error }` bad input, `404 { error: 'not found' }`, `502 { error }` source unavailable.
-- Client: `Bilingle.dictionary.lookup(word, lang, target)` resolves to the body above and
+`GET /api/define?word=&fluent=` (`server/dictionary.js`, mounted at `/api`):
+
+- `word` up to 100 characters; `fluent` is the reader's language and selects the
+  edition. Codes are lowercase ISO 639-1 from `en es fr de it pt tr ja ko zh ar ru hi`.
+- `200 { word, fluent, sections: [{ level, title, text }], source }` - `sections`
+  is the page flattened in reading order, where level 2 is a language heading and
+  deeper levels are its sections. Headings are kept verbatim, in the edition's own
+  language, because that is the language the reader reads.
+- `400 { error }` bad input, `404 { error: 'not found' }`, `502 { error }` edition unavailable.
+- Client: `Bilingle.dictionary.lookup(word, fluent)` resolves to the body above and
   rejects with an Error carrying `status`. `Bilingle.dictionary.startSession({ learning, fluent, langName })`
   is called from the `matched` handler.
-- Definitions come in English (English Wiktionary), whatever the languages. When the
-  asker's fluent language is not English the panel says so and, if `Bilingle.translate`
-  is loaded, offers "Translate definitions".
-- Results are cached in memory for an hour. No API key and no env vars.
+- Source is the MediaWiki action API (`action=query&prop=extracts&explaintext=1`),
+  which every edition serves. The REST `/page/definition/` endpoint is English-only
+  (501 elsewhere), which is why it isn't used. Plain text rather than parsed HTML,
+  so nothing from the source is ever injected into the page.
+- Results are cached in memory for an hour, keyed by edition and word. Misses are
+  cached too; upstream failures are not. No API key and no env vars.
 
-Privacy: the looked-up word is sent to Wikimedia (en.wiktionary.org) and, as a
-fallback for some pages, to Kaikki.org. Wiktionary text is CC BY-SA, and each result
-links back to its Wiktionary page. Server requests use the User-Agent
-`Bilingle-hackathon/1.0 (https://github.com/akhilmadipalli/Bilingle)`.
+Known gap: smaller editions have far less coverage than `en.wiktionary`, so a
+non-English reader will hit misses an English one never sees. Inflected forms
+(`gidiyorum` vs `gitmek`) miss in every edition. An opt-in LLM lookup is the
+planned answer to both.
+
+Privacy: the looked-up word is sent to Wikimedia, to the reader's own edition.
+Wiktionary text is CC BY-SA, and each result links back to its page. Server
+requests use the User-Agent `Bilingle-hackathon/1.0 (https://github.com/akhilmadipalli/Bilingle)`.
 
 ## Click-to-translate in chat
 
