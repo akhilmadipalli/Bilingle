@@ -1,6 +1,6 @@
 const path = require('path');
 
-// Load server/.env BEFORE requiring Selim's rooms.js below. That file reads
+// Load server/.env BEFORE requiring rooms.js below. That file reads
 // DAILY_API_KEY into a const at module-load time, so if we loaded the env
 // any later it would capture undefined and every room creation would 401.
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -9,8 +9,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// Selim's Daily.co room creation. Note it resolves to an OBJECT ({ roomUrl }),
-// not a bare url string - see matchUsers below where we unwrap it.
+// Daily.co room creation. It resolves to an OBJECT ({ roomUrl }), not a bare
+// url string. matchUsers below unwraps it.
 const { createRoom } = require('./rooms');
 
 // The waiting pool: users who've joined but haven't been matched yet.
@@ -34,11 +34,10 @@ app.use('/api', require('./translate'));
 // to the Express app), so we wrap the app in one.
 const server = http.createServer(app);
 
-// Which origins may open a socket against us. A frontend served BY this
-// server is same-origin and never needs this - it's for Micah's dev server
-// running on another port, and for any separately hosted frontend.
-// Unset (local dev) means allow anything; in production set it to the real
-// origin, e.g. ALLOWED_ORIGINS=https://bilingle.live,https://www.bilingle.live
+// Which origins may open a socket against us. The frontend this server serves
+// is same-origin and never needs it. It matters only for a frontend on another
+// port or host. Unset (local dev) allows any origin. In production, set it to
+// the real origins, e.g. ALLOWED_ORIGINS=https://bilingle.live,https://www.bilingle.live
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
   : true;
@@ -115,10 +114,8 @@ function partnerPayload(entry) {
 }
 
 // Called once we've found two complementary users. Gets a room from
-// Selim's function, records the match, and tells both sides.
+// rooms.js, records the match, and tells both sides.
 async function matchUsers(userA, userB) {
-  // Selim's createRoom resolves to { roomUrl }, so unwrap it here - the rest
-  // of our code (and the `matched` payload Micah consumes) wants a string.
   const { roomUrl } = await createRoom();
   createMatch(userA.socketId, userB.socketId, roomUrl);
 
