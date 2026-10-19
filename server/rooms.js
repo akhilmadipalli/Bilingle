@@ -1,4 +1,5 @@
 const DAILY_API_KEY = process.env.DAILY_API_KEY;
+const ROOM_TTL_SECONDS = 2 * 3600;
 
 // creates one daily.co room, returns its joinable url
 // server-side only, never call from the browser, holds the api key
@@ -12,7 +13,7 @@ async function createRoom() {
     body: JSON.stringify({
       properties: {
         // daily expects an absolute unix timestamp here, not a duration
-        exp: Math.floor(Date.now() / 1000) + 2 * 3600,
+        exp: Math.floor(Date.now() / 1000) + ROOM_TTL_SECONDS,
         // disable daily's built-in chat ui, app has its own chat panel
         enable_chat: false,
       },
