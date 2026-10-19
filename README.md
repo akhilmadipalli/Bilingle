@@ -12,9 +12,9 @@ An Omegle-style language exchange app. It matches someone who speaks language A 
 
 ## Stack
 
-- Backend: Node.js, Express, Socket.io (in-memory matchmaking pool, no database)
-- Video: Daily.co (`@daily-co/daily-js`)
-- Frontend: React or plain HTML/JS, Socket.io client
+- Backend: Node.js, Express and Socket.io. Matchmaking runs in memory, with no database.
+- Video: Daily.co (`@daily-co/daily-js`) in call object mode.
+- Frontend: plain HTML and JS in `public/`, using the Socket.io client.
 
 ## Repo layout
 
