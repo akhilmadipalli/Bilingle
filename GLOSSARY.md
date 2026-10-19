@@ -17,7 +17,7 @@ Two users joined on one Language Pair that mirrors the other's, sharing one conv
 _Avoid_: Pairing, session, room, call
 
 **Partner**:
-The other user in your Match. Only ever exists while you are in a Match.
+The other user in your Match. A Partner exists only while you are in a Match.
 _Avoid_: Stranger, peer, other user
 
 **Skip**:
