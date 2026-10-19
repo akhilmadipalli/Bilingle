@@ -150,13 +150,11 @@ the server will need to verify a Firebase ID token instead.
 
 ## Backend integration notes
 
-- Selim's `server/rooms.js` `createRoom()` resolves to `{ roomUrl }`, not a
-  bare string. `server/server.js` unwraps it before emitting `matched`.
-- `server/rooms.js` reads `DAILY_API_KEY` at module-load time, so
-  `dotenv` must be configured *before* it is required. See the top of
-  `server/server.js`.
-- If room creation fails, both users are returned to the queue rather than
-  being silently dropped.
+- `createRoom()` in `server/rooms.js` resolves to `{ roomUrl }`, not a bare
+  string. `server/server.js` unwraps it before emitting `matched`.
+- `server/rooms.js` reads `DAILY_API_KEY` when the module loads, so `dotenv`
+  must run *before* anything requires it. See the top of `server/server.js`.
+- If room creation fails, the server puts both users back in the queue.
 - The smoke test replaces `server/rooms.js` through Node's require cache, so
   it never calls the live Daily API and needs no key.
 
