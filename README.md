@@ -160,14 +160,20 @@ the server will need to verify a Firebase ID token instead.
 
 ## Translation service
 
-`POST /api/translate` is the one shared translation endpoint (built by the chat-translate feature; live subtitles and anything else should call it instead of adding their own).
+`POST /api/translate` is the app's only translation endpoint. Live subtitles,
+the chat translate button and any new feature call it instead of adding their
+own.
 
 - Request: JSON `{ text, from, to }` with lowercase ISO 639-1 codes. `from` may be `"auto"`.
-- `200 { translatedText, from, to }`, or `{ error }` with `400` (bad input, or text over 1000 characters), `429` (rate limited, 60 requests per minute per IP), `502` (the translation provider failed).
-- Client helper: `Bilingle.translate.translate(text, from, to)` in `public/translate.js` returns a Promise of the translated string and rejects with an `Error` on failure.
-- Results are cached in memory (500 entries). Nothing is stored on disk.
-- Provider: [MyMemory](https://mymemory.translated.net), free and keyless. **Text sent for translation is sent to MyMemory** (`api.mymemory.translated.net`). The provider lives alone in `server/translateProvider.js` (one function, `translate(text, from, to)`), so swapping it is a one-file change.
-- Optional env var in `server/.env`: `MYMEMORY_EMAIL` raises MyMemory's anonymous quota from 5000 to 50000 characters per day (the address is sent to MyMemory as the `de` parameter). The quota is per server IP, so set it before a demo.
+- Responses:
+  - `200 { translatedText, from, to }`;
+  - `400 { error }` for bad input or text over 1000 characters;
+  - `429 { error }` past 60 requests per minute per IP;
+  - `502 { error }` when the translation provider fails.
+- Client helper: `Bilingle.translate.translate(text, from, to)` in `public/translate.js` returns a Promise of the translated string, and rejects with an `Error` on failure.
+- The server caches the last 500 results in memory and stores nothing on disk.
+- Provider: [MyMemory](https://mymemory.translated.net), free and keyless. **The server sends all text for translation to MyMemory** (`api.mymemory.translated.net`). The provider is one function, `translate(text, from, to)`, alone in `server/translateProvider.js`, so swapping it is a one-file change.
+- Optional env var: `MYMEMORY_EMAIL` raises MyMemory's anonymous quota from 5000 to 50000 characters per day. The server sends the address to MyMemory as the `de` parameter. The quota is per server IP, so set it before a demo.
 
 ## In-session dictionary
 
