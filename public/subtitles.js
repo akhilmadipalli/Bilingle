@@ -238,8 +238,8 @@
     };
   }
 
-  // Daily app messages over whichever call object is current (Prebuilt frame or call object mode:
-  // both expose sendAppMessage and the app-message event). Broadcast is not delivered to the sender.
+  // Daily app messages over whichever call object is current. Daily does not deliver a
+  // broadcast back to its sender.
   // Limits: 4KB per message, not replayed to late joiners; a rate limit is not documented.
   function dailyTransport(getCall) {
     return {
