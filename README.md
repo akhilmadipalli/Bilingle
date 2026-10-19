@@ -222,14 +222,19 @@ The server identifies itself with the User-Agent
 
 ## Click-to-translate in chat
 
-Every chat message (the partner's and your own) has a small "Translate" button under the bubble.
-Pressing it (Enter or Space works) shows the translation beneath the bubble in a hand-inked box, pressing again ("Hide translation") hides it.
-Nothing is translated until you press it.
+Every chat message, yours and your partner's, has a small "Translate" button
+under the bubble. Pressing it, or Enter or Space on it, shows the translation
+in a hand-inked box beneath the bubble. Pressing it again ("Hide translation")
+hides it. The app translates nothing until you press it.
 
-- Partner messages translate into your fluent language, your own messages into your partner's, both with `from: 'auto'` since either side may write in either language.
-- The result is cached per message, so hiding and showing does not call the server again. If translating fails, the same button becomes "Retry".
-- The UI lives in `Bilingle.translate.attachButton` (`public/translate.js`); `public/index.html` only calls it from `appendMessage`.
-- Message text is sent only to `/api/translate`, and from there to MyMemory (see above).
+- Your partner's messages translate into your fluent language, and yours into
+  your partner's. Both use `from: 'auto'`, because either side may write in
+  either language.
+- The page caches the result per message, so hiding and showing it again makes
+  no new request. If a translation fails, the same button becomes "Retry".
+- The UI is `Bilingle.translate.attachButton` in `public/translate.js`.
+  `public/index.html` calls it only from `appendMessage`.
+- Message text goes only to `/api/translate`, and from there to MyMemory.
 
 ## Live subtitles
 
