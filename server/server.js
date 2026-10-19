@@ -43,9 +43,11 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
   : true;
 
+const MAX_SOCKET_PAYLOAD_BYTES = 16 * 1024;
+
 const io = new Server(server, {
   cors: { origin: allowedOrigins },
-  maxHttpBufferSize: 16 * 1024,
+  maxHttpBufferSize: MAX_SOCKET_PAYLOAD_BYTES,
 });
 
 const MAX_NAME_LENGTH = 32;
