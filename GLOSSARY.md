@@ -9,7 +9,7 @@ One fluent-to-learning combination a user is willing to practise, such as Englis
 _Avoid_: Pair (on its own), combination, language setting
 
 **Queue**:
-The set of users currently waiting to be matched, each with the Language Pairs they offered.
+The set of users waiting to be matched, each with the Language Pairs they offered.
 _Avoid_: Pool, lobby, waiting list
 
 **Match**:
