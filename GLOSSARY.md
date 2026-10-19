@@ -1,6 +1,6 @@
 # Bilingle
 
-Bilingle pairs strangers for live language-exchange conversation: each person teaches a language they know and practises one they are learning.
+Bilingle matches strangers for live language-exchange conversations. Each person teaches a language they know and practises one they are learning.
 
 ## Language
 

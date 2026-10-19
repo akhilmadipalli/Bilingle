@@ -90,17 +90,18 @@ Disconnects are handled automatically - nothing to emit.
   `"en"` will silently never match and will look like a backend bug.
 - **The server persists nothing.** Queue state and matches live in memory
   only, so a refresh is a brand new connection with no chat history.
-- **Oversized or rapid-fire events are silently dropped.** A `join-queue`
-  with a name over 32 characters, more than 20 pairs, or a language code over
-  10 characters is ignored, as is a `send-message` over 500 characters
-  (matching the `maxlength`s in `public/index.html`). `join-queue` and `skip`
-  together are capped at 10 per socket per 10 seconds, because each one can
-  create a paid Daily room. Socket payloads over 16 KB are rejected.
+- **The server silently drops oversized and rapid-fire events.** It ignores
+  a `join-queue` with a name over 32 characters, more than 20 pairs, or a
+  language code over 10 characters, and a `send-message` over 500
+  characters. These match the `maxlength`s in `public/index.html`. It accepts
+  at most 10 `join-queue` and `skip` events per socket in any 10 seconds,
+  because each one can create a paid Daily room. It rejects any socket
+  payload over 16 KB.
 
-## User profiles (Firebase) - planned, not built
+## User profiles (Firebase, not built yet)
 
-Nothing below exists in code yet; users currently enter a name and languages
-on each visit. This is the agreed design for when it's built.
+None of this exists in code. Users type a name and pick languages on every
+visit. This section is the agreed design for when profiles are built.
 
 Profiles are **client-authoritative**: the browser signs the user in with
 Firebase Auth, reads their profile from Firestore, and sends the same
@@ -260,21 +261,25 @@ deployment, though text chat works fine this way.
 
 ## Deployment
 
-Hosted on Render behind Cloudflare DNS at **bilingle.live**. `render.yaml`
-is a Render Blueprint describing the service.
+Bilingle runs on Render at **bilingle.live**, with Cloudflare handling DNS.
+`render.yaml` is the Render Blueprint for the service.
 
 One-time setup:
 
-1. Render: New -> Blueprint, pick this repo. Fill in `DAILY_API_KEY` and
-   `MYMEMORY_EMAIL` when prompted. Use a paid instance type - the free one
-   sleeps when idle, and a cold start drops everyone mid-demo.
-2. Render -> the service -> Settings -> Custom Domains: add `bilingle.live`
-   and `www.bilingle.live`.
-3. Cloudflare DNS: CNAME `@` and `www` to `<service>.onrender.com`, proxied.
-4. Cloudflare SSL/TLS mode: **Full**. "Flexible" makes Cloudflare talk http
-   to Render, Render redirects to https, and the browser loops forever.
-5. Check: `curl -sI https://bilingle.live` returns 200, then match two
-   devices on Chrome and confirm video and subtitles.
+1. In Render, create a new Blueprint from this repo. Fill in
+   `DAILY_API_KEY` and `MYMEMORY_EMAIL` when Render asks for them. Use a paid
+   instance type. The free type sleeps after 15 minutes without traffic,
+   which closes every open socket, and the next visitor waits about a minute
+   for it to wake.
+2. In the service's Settings, add the custom domains `bilingle.live` and
+   `www.bilingle.live`.
+3. In Cloudflare DNS, add proxied CNAME records for `@` and `www` that point
+   to `<service>.onrender.com`.
+4. Set Cloudflare's SSL/TLS mode to **Full**. With "Flexible", Cloudflare
+   talks plain http to Render, Render redirects it to https, and the browser
+   loops.
+5. Check that `curl -sI https://bilingle.live` returns 200. Then match two
+   devices in Chrome and confirm that video and subtitles work.
 
 Requirements, none of which are optional:
 
