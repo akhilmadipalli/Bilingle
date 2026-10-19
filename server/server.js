@@ -22,8 +22,7 @@ const { createMatch, getMatch, endMatch } = require('./activeMatches');
 const PORT = process.env.PORT || 3001;
 
 const app = express();
-// Serve the manual test client (public/index.html) so opening
-// http://localhost:3001 in a browser gives us something to click around in.
+// Serve the frontend in public/.
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/api', require('./dictionary'));
 
@@ -63,7 +62,7 @@ const QUEUE_EVENT_WINDOW_MS = 10_000;
 // a failed room creation.
 const users = new Map();
 
-// Basic shape-check. Not complete
+// Shape and size check on the client's join-queue payload.
 function isValidProfile(profile) {
   if (!profile || typeof profile.name !== 'string' || !profile.name.trim()) return false;
   if (profile.name.length > MAX_NAME_LENGTH) return false;
@@ -217,8 +216,8 @@ io.on('connection', (socket) => {
     // partner's socketId (or null if this socket wasn't actually matched).
     const partnerSocketId = endMatch(socket.id);
     if (partnerSocketId) {
-      // Tell the partner their stranger left. `reason: 'partner-left'`
-      // lets the frontend show a static "Partner has disconnected"
+      // `reason: 'partner-left'` tells the frontend to show the disconnected
+      // screen instead of searching.
       io.to(partnerSocketId).emit('waiting', { reason: 'partner-left' });
     }
 
@@ -248,8 +247,8 @@ io.on('connection', (socket) => {
 // without needing a second copy of all this wiring.
 module.exports = { app, server, io };
 
-// Only auto-start listening when this file is run directly (`node
-// src/server.js`), not when it's `require`'d by a test.
+// Listen only when run directly (`node server/server.js`), not when a test
+// requires this file.
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`Bilingle matchmaking server listening on http://localhost:${PORT}`);
