@@ -58,8 +58,8 @@ const QUEUE_EVENT_WINDOW_MS = 10_000;
 
 // key = socketId -> value = { socketId, name, pairs: [{ fluentLang, learningLang }] }
 // A user can queue for several language pairs at once, so we keep their whole
-// list here - needed to re-queue them on skip, or to restore every pair after
-// a failed room creation.
+// list here. Skip re-queues them with it, and a failed room creation restores
+// every pair from it.
 const users = new Map();
 
 // Shape and size check on the client's join-queue payload.
@@ -81,7 +81,7 @@ function isValidProfile(profile) {
   );
 }
 
-// Drops duplicate pairs - the same pair listed twice would otherwise put two
+// Drops duplicate pairs. The same pair listed twice would otherwise put two
 // entries for one socket in the same list.
 function normalizePairs(pairs) {
   const seen = new Set();
@@ -122,9 +122,9 @@ async function matchUsers(userA, userB) {
   io.to(userB.socketId).emit('matched', { roomUrl, partner: partnerPayload(userA) });
 }
 
-// Shared by `join-queue` and `skip`: try to find a waiting complementary
-// partner right now; if there isn't one, drop this user in the pool and
-// tell them to wait.
+// Shared by `join-queue` and `skip`. Tries to find a waiting complementary
+// partner now. If there isn't one, puts this user in the pool and tells them
+// to wait.
 async function enterQueue(socket, user) {
   // Clear anything left from a previous attempt. Without this, a user who
   // emits join-queue twice can be matched against their OWN stale entry.
@@ -229,8 +229,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    // The socket could have been either waiting in the pool or actively matched
-    // We don't track which, so just attempt both cleanups
+    // The socket may be in the pool or in a match. Nothing tracks which, so
+    // try both cleanups.
     removeFromQueue(socket.id);
 
     const partnerSocketId = endMatch(socket.id);
