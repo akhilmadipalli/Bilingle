@@ -317,26 +317,26 @@ One-time setup:
 
 Requirements, none of which are optional:
 
-- **Node 18+** (pinned in `engines`). Selim's `rooms.js` calls global
-  `fetch`, which doesn't exist on older versions.
-- **A host that supports long-lived WebSocket connections** - Render,
-  Railway, Fly.io or a VPS. Serverless platforms (Vercel/Netlify functions)
-  cannot hold a Socket.io connection open.
-- **Exactly one instance.** The waiting pool is an in-memory `Map`, so two
-  instances behind a load balancer means two separate pools and users who
-  silently never match. Moving the pool to Redis is a prerequisite for
-  scaling past one.
-- **HTTPS.** Browsers only grant camera/mic access on a secure context, so
-  video will not work over plain http.
+- **Node 18+**, pinned in `engines`. `server/rooms.js` calls the global
+  `fetch`, which older versions don't have.
+- **A host that keeps WebSocket connections open**, such as Render, Railway,
+  Fly.io or a VPS. Serverless functions on Vercel or Netlify cannot hold a
+  Socket.io connection.
+- **Exactly one instance.** The waiting pool is an in-memory `Map`. Two
+  instances behind a load balancer would have two separate pools, and their
+  users would never match each other, with no error. Scaling past one instance
+  first needs the pool moved to Redis.
+- **HTTPS.** Browsers grant camera and microphone access only on a secure
+  context, so video does not work over plain http.
 
 Environment variables on the host:
 
 | Variable | Value |
 |---|---|
-| `DAILY_API_KEY` | from the Daily dashboard - set it in the host's env, not a committed file |
+| `DAILY_API_KEY` | From the Daily dashboard. Set it in the host's environment, never in a committed file. |
 | `ALLOWED_ORIGINS` | `https://bilingle.live,https://www.bilingle.live` |
-| `MYMEMORY_EMAIL` | a team email; raises the translation quota to 50000 chars/day (see Translation service) |
-| `PORT` | set automatically by most hosts; defaults to 3001 |
+| `MYMEMORY_EMAIL` | Your email. It raises the translation quota to 50000 characters per day (see Translation service). |
+| `PORT` | Most hosts set it. It defaults to 3001. |
 
-`dotenv` reads `server/.env` if present and does nothing if it isn't, so the
-host's own environment variables take over in production with no code change.
+`dotenv` reads `server/.env` if it exists and does nothing otherwise, so in
+production the host's own environment variables apply with no code change.
