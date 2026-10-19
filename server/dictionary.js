@@ -10,7 +10,7 @@
 // serves. it returns the page as plain text with wiki headings.
 const express = require('express');
 
-const USER_AGENT = 'Bilingle-hackathon/1.0 (https://github.com/akhilmadipalli/Bilingle)';
+const USER_AGENT = 'Bilingle/1.0 (https://github.com/akhilmadipalli/Bilingle)';
 const MAX_WORD_LENGTH = 100;
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const CACHE_MAX = 500;

@@ -45,7 +45,19 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 const io = new Server(server, {
   cors: { origin: allowedOrigins },
+  // Every event we accept is tiny; the 1 MB default only helps a flooder.
+  maxHttpBufferSize: 16 * 1024,
 });
+
+// Mirror the client's maxlength attributes in public/index.html.
+const MAX_NAME_LENGTH = 32;
+const MAX_MESSAGE_LENGTH = 500;
+const MAX_PAIRS = 20;
+const MAX_LANG_LENGTH = 10;
+
+// join-queue/skip each can create a paid Daily room, so cap them per socket.
+const QUEUE_EVENT_LIMIT = 10;
+const QUEUE_EVENT_WINDOW_MS = 10_000;
 
 // key = socketId -> value = { socketId, name, pairs: [{ fluentLang, learningLang }] }
 // A user can queue for several language pairs at once, so we keep their whole
@@ -56,7 +68,9 @@ const users = new Map();
 // Basic shape-check. Not complete
 function isValidProfile(profile) {
   if (!profile || typeof profile.name !== 'string' || !profile.name.trim()) return false;
+  if (profile.name.length > MAX_NAME_LENGTH) return false;
   if (!Array.isArray(profile.pairs) || profile.pairs.length === 0) return false;
+  if (profile.pairs.length > MAX_PAIRS) return false;
 
   return profile.pairs.every(
     (pair) =>
@@ -64,7 +78,9 @@ function isValidProfile(profile) {
       typeof pair.fluentLang === 'string' &&
       typeof pair.learningLang === 'string' &&
       pair.fluentLang.trim() &&
-      pair.learningLang.trim()
+      pair.learningLang.trim() &&
+      pair.fluentLang.length <= MAX_LANG_LENGTH &&
+      pair.learningLang.length <= MAX_LANG_LENGTH
   );
 }
 
@@ -160,8 +176,19 @@ io.on('connection', (socket) => {
   // connection and is what we use as the key everywhere (pool, active
   // matches, users map) to identify "this particular tab".
 
+  // Timestamps of recent join-queue/skip events; lives and dies with the socket.
+  let queueEventTimes = [];
+  function queueEventAllowed() {
+    const now = Date.now();
+    queueEventTimes = queueEventTimes.filter((t) => now - t < QUEUE_EVENT_WINDOW_MS);
+    if (queueEventTimes.length >= QUEUE_EVENT_LIMIT) return false;
+    queueEventTimes.push(now);
+    return true;
+  }
+
   socket.on('join-queue', async (profile) => {
     if (!isValidProfile(profile)) return;
+    if (!queueEventAllowed()) return;
 
     // Already in a call - they have to skip first. Without this they could be
     // matched a second time, leaving the original partner in a half-dead
@@ -179,7 +206,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('send-message', ({ text } = {}) => {
-    if (typeof text !== 'string' || !text.trim()) return;
+    if (typeof text !== 'string' || !text.trim() || text.length > MAX_MESSAGE_LENGTH) return;
 
     const match = getMatch(socket.id);
     if (!match) return; // not currently matched with anyone
@@ -189,6 +216,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('skip', async () => {
+    if (!queueEventAllowed()) return;
+
     // endMatch removes both sides of the match and hands back the
     // partner's socketId (or null if this socket wasn't actually matched).
     const partnerSocketId = endMatch(socket.id);

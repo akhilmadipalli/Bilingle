@@ -244,7 +244,32 @@ async function run() {
   check('partner is notified on disconnect',
     davePayload !== 'timeout' && davePayload.reason === 'partner-left');
 
-  [bob, carol, dave, polly, stefan, ghostA, ghostB, ghostC, solo, erin, frank, grace]
+  // 10. Abuse limits: oversized input is dropped, queue events are throttled.
+  const mallory = await connect(url);
+  const malloryWaiting = nextEvent(mallory, 'waiting');
+  mallory.emit('join-queue', profile('M'.repeat(33), 'is', 'ga'));
+  check('over-long name is ignored', (await malloryWaiting) === 'timeout');
+
+  const henry = await connect(url);
+  const ivy = await connect(url);
+  const ivyMatched = nextEvent(ivy, 'matched');
+  henry.emit('join-queue', profile('Henry', 'lt', 'lv'));
+  ivy.emit('join-queue', profile('Ivy', 'lv', 'lt'));
+  await ivyMatched;
+
+  const ivyLongMessage = nextEvent(ivy, 'chat-message');
+  henry.emit('send-message', { text: 'x'.repeat(501) });
+  check('over-long message is not relayed', (await ivyLongMessage) === 'timeout');
+
+  const burst = await connect(url);
+  let burstReplies = 0;
+  burst.on('waiting', () => burstReplies++);
+  for (let i = 0; i < 11; i++) burst.emit('join-queue', profile('Burst', 'mt', 'cy'));
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  check('join-queue past 10 per window is dropped', burstReplies === 10);
+
+  [bob, carol, dave, polly, stefan, ghostA, ghostB, ghostC, solo, erin, frank, grace,
+    mallory, henry, ivy, burst]
     .forEach((socket) => socket.close());
   server.close();
 

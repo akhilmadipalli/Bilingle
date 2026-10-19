@@ -4,7 +4,7 @@ An Omegle-style language exchange app. Pairs a user who knows language A and wan
 
 ## Key features
 
-- Smart language pairing based on fluent/learning language pairs
+- Smart language matching based on fluent/learning language pairs
 - Real-time text chat and video calls
 - Live-translation subtitles during conversation
 - Persistent user profiles (Firebase)
@@ -22,6 +22,8 @@ client/    frontend (Micah)
 server/    backend - matchmaking (Akhil) + Daily.co room creation (Selim)
 public/    minimal reference client, served at http://localhost:3001
 tests/     smoke test for the matchmaking server
+GLOSSARY.md  canonical domain terms (Language Pair, Queue, Match, Partner, Skip)
+render.yaml  Render Blueprint for the bilingle.live deploy
 ```
 
 `server/.env` holds `DAILY_API_KEY` and is untracked - never commit it. Ask
@@ -33,7 +35,7 @@ Selim for the current key.
 npm install
 echo "DAILY_API_KEY=<key>" > server/.env
 npm start                     # http://localhost:3001
-npm test                      # 24 checks, no API key needed
+npm test                      # all suites, no API key needed
 ```
 
 Open `http://localhost:3001` in two tabs with complementary languages
@@ -64,7 +66,7 @@ Disconnects are handled automatically - nothing to emit.
 
 | Event | Payload | Meaning |
 |---|---|---|
-| `matched` | `{ roomUrl, partner: { name, fluentLang, learningLang } }` | Paired. `roomUrl` is a plain Daily.co url string. The partner's languages are the pair you were **actually matched on**, not their whole list - so your own side of the match is always the reverse of them |
+| `matched` | `{ roomUrl, partner: { name, fluentLang, learningLang } }` | Matched. `roomUrl` is a plain Daily.co url string. The partner's languages are the pair you were **actually matched on**, not their whole list - so your own side of the match is always the reverse of them |
 | `chat-message` | `{ text }` | From your partner. No sender name - label it with the `partner.name` you saved from `matched` |
 | `waiting` | *none* | You are in the queue, actively searching |
 | `waiting` | `{ reason: 'partner-left' }` | Your partner left. You are **not** in the queue - show a static "disconnected" screen and rejoin manually |
@@ -83,14 +85,22 @@ Disconnects are handled automatically - nothing to emit.
 - **More pairs means faster matches.** Someone queued for four combinations
   is matched roughly four times as often as someone queued for one. Fine at
   your size; worth revisiting if fairness ever matters.
-- **Language codes must match exactly, reversed.** `en`/`tr` only ever pairs
+- **Language codes must match exactly, reversed.** `en`/`tr` only ever matches
   with `tr`/`en`. Agree on one code set (lowercase ISO 639-1) - `"EN"` vs
   `"en"` will silently never match and will look like a backend bug.
 - **The server persists nothing.** Queue state and matches live in memory
-  only, so a refresh is a brand new connection with no chat history. User
-  profiles do persist, but client-side via Firebase - see below.
+  only, so a refresh is a brand new connection with no chat history.
+- **Oversized or rapid-fire events are silently dropped.** A `join-queue`
+  with a name over 32 characters, more than 20 pairs, or a language code over
+  10 characters is ignored, as is a `send-message` over 500 characters
+  (matching the `maxlength`s in `public/index.html`). `join-queue` and `skip`
+  together are capped at 10 per socket per 10 seconds, because each one can
+  create a paid Daily room. Socket payloads over 16 KB are rejected.
 
-## User profiles (Firebase)
+## User profiles (Firebase) - planned, not built
+
+Nothing below exists in code yet; users currently enter a name and languages
+on each visit. This is the agreed design for when it's built.
 
 Profiles are **client-authoritative**: the browser signs the user in with
 Firebase Auth, reads their profile from Firestore, and sends the same
@@ -203,7 +213,7 @@ planned answer to both.
 
 Privacy: the looked-up word is sent to Wikimedia, to the reader's own edition.
 Wiktionary text is CC BY-SA, and each result links back to its page. Server
-requests use the User-Agent `Bilingle-hackathon/1.0 (https://github.com/akhilmadipalli/Bilingle)`.
+requests use the User-Agent `Bilingle/1.0 (https://github.com/akhilmadipalli/Bilingle)`.
 
 ## Click-to-translate in chat
 
@@ -250,7 +260,21 @@ deployment, though text chat works fine this way.
 
 ## Deployment
 
-Live at **bilingle.live**.
+Hosted on Render behind Cloudflare DNS at **bilingle.live**. `render.yaml`
+is a Render Blueprint describing the service.
+
+One-time setup:
+
+1. Render: New -> Blueprint, pick this repo. Fill in `DAILY_API_KEY` and
+   `MYMEMORY_EMAIL` when prompted. Use a paid instance type - the free one
+   sleeps when idle, and a cold start drops everyone mid-demo.
+2. Render -> the service -> Settings -> Custom Domains: add `bilingle.live`
+   and `www.bilingle.live`.
+3. Cloudflare DNS: CNAME `@` and `www` to `<service>.onrender.com`, proxied.
+4. Cloudflare SSL/TLS mode: **Full**. "Flexible" makes Cloudflare talk http
+   to Render, Render redirects to https, and the browser loops forever.
+5. Check: `curl -sI https://bilingle.live` returns 200, then match two
+   devices on Chrome and confirm video and subtitles.
 
 Requirements, none of which are optional:
 
@@ -272,6 +296,7 @@ Environment variables on the host:
 |---|---|
 | `DAILY_API_KEY` | from the Daily dashboard - set it in the host's env, not a committed file |
 | `ALLOWED_ORIGINS` | `https://bilingle.live,https://www.bilingle.live` |
+| `MYMEMORY_EMAIL` | a team email; raises the translation quota to 50000 chars/day (see Translation service) |
 | `PORT` | set automatically by most hosts; defaults to 3001 |
 
 `dotenv` reads `server/.env` if present and does nothing if it isn't, so the

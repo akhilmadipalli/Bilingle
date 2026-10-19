@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: bilingle
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    # The waiting pool is in memory; a second instance would split it.
+    numInstances: 1
+    envVars:
+      - key: DAILY_API_KEY
+        sync: false
+      - key: MYMEMORY_EMAIL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://bilingle.live,https://www.bilingle.live
